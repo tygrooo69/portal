@@ -4,7 +4,7 @@ import { Dashboard } from './components/Dashboard';
 import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { ViewMode, AppItem } from './types';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Key, Save, Check } from 'lucide-react';
 
 const DEFAULT_APPS: AppItem[] = [
   { id: '1', name: 'Drive Cloud', description: 'Stockage sécurisé', icon: 'Cloud', color: 'bg-blue-500', category: 'utilities', url: 'https://drive.google.com' },
@@ -20,6 +20,9 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [apps, setApps] = useState<AppItem[]>([]);
+  const [apiKey, setApiKey] = useState('');
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
 
   useEffect(() => {
     // Load apps from local storage or use defaults
@@ -32,6 +35,13 @@ const App: React.FC = () => {
       }
     } else {
       setApps(DEFAULT_APPS);
+    }
+
+    // Load API Key
+    const savedKey = localStorage.getItem('lumina_api_key');
+    if (savedKey) {
+      setApiKey(savedKey);
+      setTempApiKey(savedKey);
     }
 
     // Check system preference on mount
@@ -65,6 +75,13 @@ const App: React.FC = () => {
     saveApps(apps.filter(a => a.id !== id));
   };
 
+  const handleSaveApiKey = () => {
+    localStorage.setItem('lumina_api_key', tempApiKey);
+    setApiKey(tempApiKey);
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus('idle'), 2000);
+  };
+
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   const renderContent = () => {
@@ -74,7 +91,7 @@ const App: React.FC = () => {
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
-            <AIAssistant />
+            <AIAssistant apiKey={apiKey} />
           </div>
         );
       case 'admin-apps':
@@ -99,22 +116,62 @@ const App: React.FC = () => {
         return (
            <div className="p-8 flex flex-col max-w-2xl mx-auto">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Paramètres</h2>
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-200 dark:divide-slate-800">
+                 
+                 {/* Appearance Settings */}
+                 <div className="p-4 flex items-center justify-between">
                     <div>
                       <p className="font-medium text-slate-800 dark:text-white">Apparence</p>
                       <p className="text-sm text-slate-500">Basculer entre le mode clair et sombre</p>
                     </div>
-                    <button onClick={toggleTheme} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                    <button onClick={toggleTheme} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-700">
                        {isDarkMode ? <Moon size={20} className="text-blue-400" /> : <Sun size={20} className="text-orange-500" />}
                     </button>
                  </div>
-                 <div className="p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-slate-800 dark:text-white">Clé API Gemini</p>
-                      <p className="text-sm text-slate-500">Gérée via les variables d'environnement</p>
+
+                 {/* API Key Settings */}
+                 <div className="p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
+                          <Key size={18} className="text-blue-500" /> Clé API Gemini
+                        </p>
+                        <p className="text-sm text-slate-500">Définissez votre propre clé (écrase celle du serveur)</p>
+                      </div>
+                      {saveStatus === 'saved' && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full border border-green-200 flex items-center gap-1 animate-fade-in">
+                          <Check size={12} /> Sauvegardé
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full border border-green-200">Connecté</span>
+                    
+                    <div className="flex gap-2 mt-1">
+                      <input 
+                        type="password" 
+                        value={tempApiKey}
+                        onChange={(e) => setTempApiKey(e.target.value)}
+                        placeholder="Collez votre clé API Google ici (AIza...)"
+                        className="flex-1 px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all"
+                      />
+                      <button 
+                        onClick={handleSaveApiKey}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        <Save size={16} />
+                        <span className="hidden sm:inline">Enregistrer</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      La clé est stockée localement dans votre navigateur. Si vide, la variable d'environnement du serveur sera utilisée.
+                    </p>
+                 </div>
+
+                 {/* Version Info */}
+                 <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
+                    <div className="flex justify-between items-center text-xs text-slate-400">
+                      <span>Version 1.2.0</span>
+                      <span>Lumina Portal</span>
+                    </div>
                  </div>
               </div>
            </div>

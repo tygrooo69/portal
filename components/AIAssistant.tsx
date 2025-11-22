@@ -3,7 +3,11 @@ import { Send, Sparkles, Bot, User as UserIcon, Loader2 } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { generateAIResponse } from '../services/geminiService';
 
-export const AIAssistant: React.FC = () => {
+interface AIAssistantProps {
+  apiKey?: string;
+}
+
+export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -45,7 +49,7 @@ export const AIAssistant: React.FC = () => {
         parts: [{ text: m.text }]
       }));
 
-      const responseText = await generateAIResponse(userMsg.text, history);
+      const responseText = await generateAIResponse(userMsg.text, history, apiKey);
 
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

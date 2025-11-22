@@ -1,8 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize the client only when needed to avoid issues if API key is missing initially
-const getClient = () => {
-  const apiKey = process.env.API_KEY;
+// Initialize the client dynamically
+const getClient = (userApiKey?: string) => {
+  // Priority: User Key > Environment Key
+  const apiKey = userApiKey || process.env.API_KEY;
+  
   if (!apiKey) {
     console.warn("API Key is missing. AI features will not work.");
     return null;
@@ -12,16 +14,13 @@ const getClient = () => {
 
 export const generateAIResponse = async (
   prompt: string,
-  history: { role: string; parts: { text: string }[] }[] = []
+  history: { role: string; parts: { text: string }[] }[] = [],
+  userApiKey?: string
 ): Promise<string> => {
-  const ai = getClient();
-  if (!ai) return "Clé API manquante. Veuillez configurer votre clé API.";
+  const ai = getClient(userApiKey);
+  if (!ai) return "Clé API manquante. Veuillez configurer votre clé API dans les Paramètres.";
 
   try {
-    // Map simple history format to Gemini format if needed, 
-    // but for single turn or simple chat, we can use generateContent or chat.
-    // Using chat for context awareness.
-    
     const chat = ai.chats.create({
       model: 'gemini-2.5-flash',
       config: {
@@ -37,6 +36,6 @@ export const generateAIResponse = async (
     return result.text || "Désolé, je n'ai pas pu générer de réponse.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Une erreur est survenue lors de la communication avec l'IA.";
+    return "Une erreur est survenue lors de la communication avec l'IA. Vérifiez votre clé API.";
   }
 };
