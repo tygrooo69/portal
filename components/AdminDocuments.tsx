@@ -1,6 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit } from 'lucide-react';
+import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit, FileType } from 'lucide-react';
 import { DocumentItem } from '../types';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
+
+// Set up PDF.js worker using CDN to avoid build complexity in this environment
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface AdminDocumentsProps {
   documents: DocumentItem[];
@@ -11,6 +16,7 @@ interface AdminDocumentsProps {
 export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAddDocument, onDeleteDocument }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -22,7 +28,25 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
     setIsDragging(false);
   };
 
-  const processFile = (file: File) => {
+  const extractPdfText = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+    }
+    return fullText;
+  };
+
+  const extractDocxText = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  };
+
+  const processFile = async (file: File) => {
     // Max 20MB per file
     const MAX_SIZE = 20 * 1024 * 1024;
     
@@ -31,36 +55,60 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'txt';
+      let content = '';
+
+      if (fileExt === 'pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        content = await extractPdfText(arrayBuffer);
+      } else if (fileExt === 'docx') {
+        const arrayBuffer = await file.arrayBuffer();
+        content = await extractDocxText(arrayBuffer);
+      } else {
+        // Text based files (txt, md, json, csv)
+        content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      }
+
+      if (!content || !content.trim()) {
+        throw new Error("Impossible d'extraire du texte de ce fichier ou le fichier est vide.");
+      }
+
       const newDoc: DocumentItem = {
         id: Date.now().toString() + Math.random().toString().slice(2, 5),
         name: file.name,
         content: content,
-        type: file.name.split('.').pop() || 'txt',
+        type: fileExt,
         uploadDate: new Date().toLocaleDateString('fr-FR')
       };
+      
       onAddDocument(newDoc);
-      setError(null);
-    };
-    reader.onerror = () => setError("Erreur lors de la lecture du fichier.");
-    
-    reader.readAsText(file);
+    } catch (err) {
+      console.error(err);
+      setError(`Erreur lors de la lecture de ${file.name} : ${(err as Error).message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    
     files.forEach(file => processFile(file));
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       Array.from(e.target.files).forEach(file => processFile(file));
-      // Reset input
       e.target.value = '';
     }
   };
@@ -70,6 +118,8 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
       case 'json': return <FileJson className="text-yellow-500" />;
       case 'md':
       case 'txt': return <FileText className="text-blue-500" />;
+      case 'pdf': return <FileType className="text-red-500" />;
+      case 'docx': return <FileText className="text-blue-700" />;
       default: return <FileCode className="text-slate-500" />;
     }
   };
@@ -83,7 +133,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
 
       {/* Upload Zone */}
       <div 
-        className={`mb-8 border-2 border-dashed rounded-2xl p-10 text-center transition-colors cursor-pointer
+        className={`mb-8 border-2 border-dashed rounded-2xl p-10 text-center transition-colors cursor-pointer relative overflow-hidden
           ${isDragging 
             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
             : 'border-slate-300 dark:border-slate-700 hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
@@ -91,13 +141,22 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !isProcessing && fileInputRef.current?.click()}
       >
+        {isProcessing && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center z-10">
+            <div className="flex flex-col items-center text-blue-600 animate-pulse">
+              <BrainCircuit size={48} />
+              <p className="mt-2 font-semibold">Analyse et extraction du texte...</p>
+            </div>
+          </div>
+        )}
+        
         <input 
           type="file" 
           ref={fileInputRef} 
           className="hidden" 
-          accept=".txt,.md,.json,.csv" 
+          accept=".txt,.md,.json,.csv,.pdf,.docx" 
           multiple 
           onChange={handleFileInput}
         />
@@ -107,7 +166,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
           </div>
           <div>
             <p className="text-lg font-semibold text-slate-800 dark:text-white">Cliquez ou glissez des fichiers ici</p>
-            <p className="text-sm text-slate-500 mt-1">Supporte .txt, .md, .json, .csv (Max 20MB)</p>
+            <p className="text-sm text-slate-500 mt-1">Supporte .txt, .md, .json, .pdf, .docx (Max 20MB)</p>
           </div>
         </div>
       </div>

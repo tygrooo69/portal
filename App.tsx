@@ -5,7 +5,8 @@ import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { AdminDocuments } from './components/AdminDocuments';
 import { ViewMode, AppItem, DocumentItem } from './types';
-import { Moon, Sun, Key, Save, Check } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
+import { api } from './services/api';
 
 const DEFAULT_APPS: AppItem[] = [
   { id: '1', name: 'Drive Cloud', description: 'Stockage sécurisé', icon: 'Cloud', color: 'bg-blue-500', category: 'utilities', url: 'https://drive.google.com' },
@@ -22,44 +23,49 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [apps, setApps] = useState<AppItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [apiKey, setApiKey] = useState('');
-  const [tempApiKey, setTempApiKey] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [isLoaded, setIsLoaded] = useState(false);
 
+  // Initialize Data
   useEffect(() => {
-    // Load apps from local storage or use defaults
-    const savedApps = localStorage.getItem('lumina_apps');
-    if (savedApps) {
-      try {
-        setApps(JSON.parse(savedApps));
-      } catch (e) {
-        setApps(DEFAULT_APPS);
+    const initialize = async () => {
+      // 1. Try loading from Server (Disk)
+      const serverData = await api.loadData();
+      
+      if (serverData) {
+        setApps(serverData.apps.length > 0 ? serverData.apps : DEFAULT_APPS);
+        setDocuments(serverData.documents);
+      } else {
+        // 2. Fallback to LocalStorage (Client)
+        const savedApps = localStorage.getItem('lumina_apps');
+        if (savedApps) {
+          try {
+            setApps(JSON.parse(savedApps));
+          } catch (e) {
+            setApps(DEFAULT_APPS);
+          }
+        } else {
+          setApps(DEFAULT_APPS);
+        }
+
+        const savedDocs = localStorage.getItem('lumina_documents');
+        if (savedDocs) {
+          try {
+            setDocuments(JSON.parse(savedDocs));
+          } catch (e) {
+            console.error(e);
+          }
+        }
       }
-    } else {
-      setApps(DEFAULT_APPS);
-    }
 
-    // Load Documents from local storage
-    const savedDocs = localStorage.getItem('lumina_documents');
-    if (savedDocs) {
-      try {
-        setDocuments(JSON.parse(savedDocs));
-      } catch (e) {
-        console.error('Failed to parse documents', e);
+      // Check theme
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        setIsDarkMode(true);
       }
-    }
+      
+      setIsLoaded(true);
+    };
 
-    // Load API Key
-    const savedKey = localStorage.getItem('lumina_api_key');
-    if (savedKey) {
-      setApiKey(savedKey);
-      setTempApiKey(savedKey);
-    }
-
-    // Check system preference on mount
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setIsDarkMode(true);
-    }
+    initialize();
   }, []);
 
   useEffect(() => {
@@ -70,62 +76,58 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  const saveApps = (newApps: AppItem[]) => {
+  // Unified Save Function
+  const persistData = async (newApps: AppItem[], newDocs: DocumentItem[]) => {
+    // Update UI immediately
     setApps(newApps);
-    localStorage.setItem('lumina_apps', JSON.stringify(newApps));
-  };
-
-  const handleAddApp = (app: AppItem) => {
-    saveApps([...apps, app]);
-  };
-
-  const handleUpdateApp = (updatedApp: AppItem) => {
-    saveApps(apps.map(a => a.id === updatedApp.id ? updatedApp : a));
-  };
-
-  const handleDeleteApp = (id: string) => {
-    saveApps(apps.filter(a => a.id !== id));
-  };
-
-  // Document management
-  const saveDocuments = (newDocs: DocumentItem[]) => {
-    // Always update State (RAM) so it works for the current session
     setDocuments(newDocs);
+
+    // Try Save to Server
+    const serverSaved = await api.saveData(newApps, newDocs);
     
-    try {
-      // Attempt to save to LocalStorage (Persistence)
-      localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
-    } catch (e) {
-      console.warn("Storage quota exceeded:", e);
-      alert("Note : Ce document est volumineux. Il est chargé pour cette session et l'IA peut l'utiliser, mais il ne pourra pas être sauvegardé pour votre prochaine visite car le stockage du navigateur est plein.");
+    if (!serverSaved) {
+      // Fallback: Save to LocalStorage
+      try {
+        localStorage.setItem('lumina_apps', JSON.stringify(newApps));
+        localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
+      } catch (e) {
+        console.warn("LocalStorage quota exceeded or error", e);
+      }
     }
   };
 
+  const handleAddApp = (app: AppItem) => {
+    persistData([...apps, app], documents);
+  };
+
+  const handleUpdateApp = (updatedApp: AppItem) => {
+    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents);
+  };
+
+  const handleDeleteApp = (id: string) => {
+    persistData(apps.filter(a => a.id !== id), documents);
+  };
+
   const handleAddDocument = (doc: DocumentItem) => {
-    saveDocuments([...documents, doc]);
+    persistData(apps, [...documents, doc]);
   };
 
   const handleDeleteDocument = (id: string) => {
-    saveDocuments(documents.filter(d => d.id !== id));
-  };
-
-  const handleSaveApiKey = () => {
-    localStorage.setItem('lumina_api_key', tempApiKey);
-    setApiKey(tempApiKey);
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+    persistData(apps, documents.filter(d => d.id !== id));
   };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   const renderContent = () => {
+    if (!isLoaded) return <div className="flex h-full items-center justify-center text-slate-400">Chargement...</div>;
+
     switch (view) {
       case 'dashboard':
         return <Dashboard apps={apps} documents={documents} />;
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
-            <AIAssistant apiKey={apiKey} documents={documents} />
+            <AIAssistant documents={documents} />
           </div>
         );
       case 'admin-apps':
@@ -171,47 +173,10 @@ const App: React.FC = () => {
                     </button>
                  </div>
 
-                 {/* API Key Settings */}
-                 <div className="p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
-                          <Key size={18} className="text-blue-500" /> Clé API Gemini
-                        </p>
-                        <p className="text-sm text-slate-500">Définissez votre propre clé (écrase celle du serveur)</p>
-                      </div>
-                      {saveStatus === 'saved' && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full border border-green-200 flex items-center gap-1 animate-fade-in">
-                          <Check size={12} /> Sauvegardé
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-2 mt-1">
-                      <input 
-                        type="password" 
-                        value={tempApiKey}
-                        onChange={(e) => setTempApiKey(e.target.value)}
-                        placeholder="Collez votre clé API Google ici (AIza...)"
-                        className="flex-1 px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all"
-                      />
-                      <button 
-                        onClick={handleSaveApiKey}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                      >
-                        <Save size={16} />
-                        <span className="hidden sm:inline">Enregistrer</span>
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-slate-400">
-                      La clé est stockée localement dans votre navigateur. Si vide, la variable d'environnement du serveur sera utilisée.
-                    </p>
-                 </div>
-
                  {/* Version Info */}
                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
                     <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.3.1</span>
+                      <span>Version 1.4.0</span>
                       <span>Lumina Portal</span>
                     </div>
                  </div>
@@ -233,12 +198,7 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 h-full overflow-hidden flex flex-col relative">
-        {/* Mobile Overlay */}
-        <div className="absolute top-4 right-4 z-50 md:hidden">
-          {/* Mobile menu trigger would go here normally */}
-        </div>
-
-        {/* Theme Toggle (Floating for easy access if not in settings) */}
+        {/* Theme Toggle (Floating) */}
         <div className="absolute top-6 right-6 z-40 hidden md:block">
           <button 
             onClick={toggleTheme}

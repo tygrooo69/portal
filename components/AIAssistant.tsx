@@ -4,11 +4,10 @@ import { ChatMessage, DocumentItem } from '../types';
 import { generateAIResponse } from '../services/geminiService';
 
 interface AIAssistantProps {
-  apiKey?: string;
   documents?: DocumentItem[];
 }
 
-export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey, documents = [] }) => {
+export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [] }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -50,7 +49,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey, documents = []
         parts: [{ text: m.text }]
       }));
 
-      const responseText = await generateAIResponse(userMsg.text, history, apiKey, documents);
+      const responseText = await generateAIResponse(userMsg.text, history, documents);
 
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

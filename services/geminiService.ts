@@ -2,9 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 import { DocumentItem } from "../types";
 
 // Initialize the client dynamically
-const getClient = (userApiKey?: string) => {
-  // Priority: User Key > Environment Key
-  const apiKey = userApiKey || process.env.API_KEY;
+const getClient = () => {
+  // The API key must be obtained exclusively from the environment variable process.env.API_KEY
+  const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
     console.warn("API Key is missing. AI features will not work.");
@@ -93,11 +93,10 @@ const findRelevantContext = (query: string, documents: DocumentItem[]): string =
 export const generateAIResponse = async (
   prompt: string,
   history: { role: string; parts: { text: string }[] }[] = [],
-  userApiKey?: string,
   documents?: DocumentItem[]
 ): Promise<string> => {
-  const ai = getClient(userApiKey);
-  if (!ai) return "Clé API manquante. Veuillez configurer votre clé API dans les Paramètres.";
+  const ai = getClient();
+  if (!ai) return "Clé API manquante. Veuillez configurer votre clé API dans les variables d'environnement.";
 
   try {
     let systemInstruction = "Tu es Lumina, une assistante virtuelle intelligente, élégante et concise pour un portail d'entreprise. Réponds en français de manière professionnelle et utile.";
