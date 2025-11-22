@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installer les dépendances
-RUN npm ci
+RUN npm install
 
 # Copier le reste du code source
 COPY . .
@@ -34,7 +34,7 @@ COPY --from=builder /app/server.js ./
 COPY --from=builder /app/package*.json ./
 
 # Installer uniquement les dépendances de production
-RUN npm ci --only=production && \
+RUN npm install --only=production && \
     npm cache clean --force
 
 # Créer le dossier data avec les bonnes permissions
