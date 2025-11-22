@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle } from 'lucide-react';
+import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit } from 'lucide-react';
 import { DocumentItem } from '../types';
 
 interface AdminDocumentsProps {
@@ -129,26 +129,38 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {documents.map((doc) => (
-              <div key={doc.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between group">
-                <div className="flex items-center gap-4 overflow-hidden">
-                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                    {getFileIcon(doc.type)}
+            {documents.map((doc) => {
+              // Check if doc is large (> 2MB)
+              const isLarge = doc.content.length > 2 * 1024 * 1024;
+
+              return (
+                <div key={doc.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between group">
+                  <div className="flex items-center gap-4 overflow-hidden">
+                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                      {getFileIcon(doc.type)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-slate-800 dark:text-white truncate">{doc.name}</h4>
+                        {isLarge && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-full flex items-center gap-1" title="Lecture intelligente activée pour ce gros fichier">
+                            <BrainCircuit size={10} /> Smart
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500">Ajouté le {doc.uploadDate} • {Math.round(doc.content.length / 1024 * 10) / 10} KB</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="font-medium text-slate-800 dark:text-white truncate">{doc.name}</h4>
-                    <p className="text-xs text-slate-500">Ajouté le {doc.uploadDate} • {Math.round(doc.content.length / 1024 * 10) / 10} KB</p>
-                  </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDeleteDocument(doc.id); }}
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Supprimer"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onDeleteDocument(doc.id); }}
-                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  title="Supprimer"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

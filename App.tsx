@@ -121,7 +121,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (view) {
       case 'dashboard':
-        return <Dashboard apps={apps} />;
+        return <Dashboard apps={apps} documents={documents} />;
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
@@ -219,7 +219,7 @@ const App: React.FC = () => {
            </div>
         );
       default:
-        return <Dashboard apps={apps} />;
+        return <Dashboard apps={apps} documents={documents} />;
     }
   };
 

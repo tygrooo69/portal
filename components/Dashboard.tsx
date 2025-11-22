@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, Bell } from 'lucide-react';
-import { AppItem } from '../types';
+import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson } from 'lucide-react';
+import { AppItem, DocumentItem } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
 interface DashboardProps {
   apps: AppItem[];
+  documents: DocumentItem[];
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ apps }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -26,6 +27,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps }) => {
   const handleAppClick = (app: AppItem) => {
     if (app.url) {
       window.open(app.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleDownload = (doc: DocumentItem) => {
+    const blob = new Blob([doc.content], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const getFileIcon = (type: string) => {
+    switch(type.toLowerCase()) {
+      case 'json': return <FileJson className="text-yellow-500" />;
+      case 'md':
+      case 'txt': return <FileText className="text-blue-500" />;
+      default: return <FileCode className="text-slate-500" />;
     }
   };
 
@@ -67,10 +89,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content - App Grid */}
+        {/* Main Content - App Grid & Documents */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* Section: Quick Access */}
+          {/* Section: Applications */}
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mes Applications</h2>
@@ -101,6 +123,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps }) => {
               </div>
             )}
           </section>
+
+          {/* Section: Documents */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Documents & Ressources</h2>
+            </div>
+
+            {documents.length === 0 ? (
+               <div className="p-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
+                 <p className="text-sm text-slate-500">Aucun document disponible. Importez des fichiers dans "Gestion Docs".</p>
+               </div>
+            ) : (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl flex-shrink-0">
+                           {getFileIcon(doc.type)}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-medium text-slate-800 dark:text-white truncate pr-4">{doc.name}</h4>
+                          <p className="text-xs text-slate-500">
+                            {doc.uploadDate} • {Math.round(doc.content.length / 1024 * 10) / 10} KB
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleDownload(doc)}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        title="Télécharger"
+                      >
+                        <Download size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
         </div>
 
         {/* Sidebar Right - Widgets */}
