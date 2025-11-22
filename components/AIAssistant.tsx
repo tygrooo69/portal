@@ -5,9 +5,10 @@ import { generateAIResponse } from '../services/geminiService';
 
 interface AIAssistantProps {
   documents?: DocumentItem[];
+  apiKey?: string;
 }
 
-export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [] }) => {
+export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [], apiKey }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -49,7 +50,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [] }) => {
         parts: [{ text: m.text }]
       }));
 
-      const responseText = await generateAIResponse(userMsg.text, history, documents);
+      // Pass the optional apiKey (from settings) to the service
+      const responseText = await generateAIResponse(userMsg.text, history, documents, apiKey);
 
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -90,6 +92,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [] }) => {
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Propulsé par Gemini 2.5 
             {documents.length > 0 && <span className="ml-1 text-blue-500">• {documents.length} docs indexés</span>}
+            {apiKey && <span className="ml-1 text-green-500">• Clé perso active</span>}
           </p>
         </div>
       </div>

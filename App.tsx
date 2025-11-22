@@ -5,7 +5,7 @@ import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { AdminDocuments } from './components/AdminDocuments';
 import { ViewMode, AppItem, DocumentItem } from './types';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Key, Save } from 'lucide-react';
 import { api } from './services/api';
 
 const DEFAULT_APPS: AppItem[] = [
@@ -24,6 +24,7 @@ const App: React.FC = () => {
   const [apps, setApps] = useState<AppItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [apiKey, setApiKey] = useState('');
 
   // Initialize Data
   useEffect(() => {
@@ -55,6 +56,12 @@ const App: React.FC = () => {
             console.error(e);
           }
         }
+      }
+
+      // Load API Key
+      const savedKey = localStorage.getItem('lumina_api_key');
+      if (savedKey) {
+        setApiKey(savedKey);
       }
 
       // Check theme
@@ -96,6 +103,11 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveApiKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('lumina_api_key', key);
+  };
+
   const handleAddApp = (app: AppItem) => {
     persistData([...apps, app], documents);
   };
@@ -127,7 +139,7 @@ const App: React.FC = () => {
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
-            <AIAssistant documents={documents} />
+            <AIAssistant documents={documents} apiKey={apiKey} />
           </div>
         );
       case 'admin-apps':
@@ -173,10 +185,31 @@ const App: React.FC = () => {
                     </button>
                  </div>
 
+                 {/* API Key Settings */}
+                 <div className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Key size={18} className="text-slate-400" />
+                      <p className="font-medium text-slate-800 dark:text-white">Clé API Gemini</p>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-3">
+                      Définissez votre propre clé API pour surcharger celle du serveur. 
+                      La clé est stockée uniquement dans votre navigateur.
+                    </p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="password" 
+                        value={apiKey}
+                        onChange={(e) => handleSaveApiKey(e.target.value)}
+                        placeholder="Collez votre clé API ici (AIza...)"
+                        className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
+                      />
+                    </div>
+                 </div>
+
                  {/* Version Info */}
                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
                     <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.4.0</span>
+                      <span>Version 1.5.0</span>
                       <span>Lumina Portal</span>
                     </div>
                  </div>
