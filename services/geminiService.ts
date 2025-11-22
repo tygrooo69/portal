@@ -120,8 +120,9 @@ export const generateAIResponse = async (
       systemInstruction += `\n\nIMPORTANT : Tu as accès aux extraits de documents internes ci-dessous (sélectionnés pour leur pertinence avec la question). Utilise ces informations pour répondre. Si l'information n'est pas dans le contexte, dis-le.\n\n${contextData}`;
     }
 
+    // Updated to gemini-2.5-flash to avoid 404 and deprecation errors
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: systemInstruction
     });
 
@@ -145,6 +146,6 @@ export const generateAIResponse = async (
     return result.response.text() || "Désolé, je n'ai pas pu générer de réponse.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Une erreur est survenue lors de la communication avec l'IA. Vérifiez votre clé API ou réessayez plus tard.";
+    return "Une erreur est survenue lors de la communication avec l'IA. (Erreur: Modèle introuvable ou clé invalide).";
   }
 };
