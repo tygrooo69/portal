@@ -5,7 +5,7 @@ import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { AdminDocuments } from './components/AdminDocuments';
 import { ViewMode, AppItem, DocumentItem } from './types';
-import { Moon, Sun, Key, Save } from 'lucide-react';
+import { Moon, Sun, Key } from 'lucide-react';
 import { api } from './services/api';
 
 const DEFAULT_APPS: AppItem[] = [
@@ -24,7 +24,11 @@ const App: React.FC = () => {
   const [apps, setApps] = useState<AppItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [apiKey, setApiKey] = useState('');
+  
+  // Initialization optimized: Load key synchronously so it's available on first render
+  const [apiKey, setApiKey] = useState(() => {
+    return localStorage.getItem('lumina_api_key') || '';
+  });
 
   // Initialize Data
   useEffect(() => {
@@ -56,12 +60,6 @@ const App: React.FC = () => {
             console.error(e);
           }
         }
-      }
-
-      // Load API Key
-      const savedKey = localStorage.getItem('lumina_api_key');
-      if (savedKey) {
-        setApiKey(savedKey);
       }
 
       // Check theme
@@ -204,12 +202,15 @@ const App: React.FC = () => {
                         className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
                       />
                     </div>
+                    {apiKey && (
+                      <p className="text-xs text-green-600 mt-2">✓ Clé API enregistrée localement</p>
+                    )}
                  </div>
 
                  {/* Version Info */}
                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
                     <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.5.0</span>
+                      <span>Version 1.5.1</span>
                       <span>Lumina Portal</span>
                     </div>
                  </div>

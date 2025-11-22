@@ -7,6 +7,14 @@ const getClient = (userApiKey?: string) => {
   // This allows users to override the server key with their own in the Settings
   const apiKey = userApiKey || process.env.API_KEY;
   
+  if (userApiKey) {
+    console.log("GeminiService: Using User API Key from Settings");
+  } else if (process.env.API_KEY) {
+    console.log("GeminiService: Using Server API Key from Environment");
+  } else {
+    console.warn("GeminiService: No API Key found!");
+  }
+  
   if (!apiKey) {
     console.warn("API Key is missing. AI features will not work.");
     return null;
@@ -117,11 +125,20 @@ export const generateAIResponse = async (
       systemInstruction: systemInstruction
     });
 
-    const chat = model.startChat({
-      history: history.map(h => ({
+    // Sanitize history: Gemini expects the first message to be from 'user'
+    // We filter out any leading 'model' messages that might have slipped in
+    const cleanHistory = history.map(h => ({
         role: h.role as "user" | "model",
         parts: h.parts.map(p => ({ text: p.text }))
-      }))
+    }));
+
+    // Remove leading model messages if any
+    while (cleanHistory.length > 0 && cleanHistory[0].role === 'model') {
+        cleanHistory.shift();
+    }
+
+    const chat = model.startChat({
+      history: cleanHistory
     });
 
     const result = await chat.sendMessage(prompt);

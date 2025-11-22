@@ -45,10 +45,13 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [], apiKey
 
     try {
       // Prepare history for the API
-      const history = messages.map(m => ({
-        role: m.role,
-        parts: [{ text: m.text }]
-      }));
+      // Filter out the welcome message as Gemini history must NOT start with a model message
+      const history = messages
+        .filter(m => m.id !== 'welcome')
+        .map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
 
       // Pass the optional apiKey (from settings) to the service
       const responseText = await generateAIResponse(userMsg.text, history, documents, apiKey);
@@ -90,7 +93,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [], apiKey
         <div>
           <h2 className="font-semibold text-slate-800 dark:text-white">Assistant Lumina</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Propulsé par Gemini 2.5 
+            Propulsé par Gemini 
             {documents.length > 0 && <span className="ml-1 text-blue-500">• {documents.length} docs indexés</span>}
             {apiKey && <span className="ml-1 text-green-500">• Clé perso active</span>}
           </p>
