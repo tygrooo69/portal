@@ -23,9 +23,11 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
   };
 
   const processFile = (file: File) => {
-    // Max 1MB per file to respect localStorage limits roughly
-    if (file.size > 1024 * 1024) {
-      setError(`Le fichier ${file.name} est trop volumineux (max 1MB).`);
+    // Max 20MB per file
+    const MAX_SIZE = 20 * 1024 * 1024;
+    
+    if (file.size > MAX_SIZE) {
+      setError(`Le fichier ${file.name} est trop volumineux (max 20MB).`);
       return;
     }
 
@@ -105,7 +107,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
           </div>
           <div>
             <p className="text-lg font-semibold text-slate-800 dark:text-white">Cliquez ou glissez des fichiers ici</p>
-            <p className="text-sm text-slate-500 mt-1">Supporte .txt, .md, .json, .csv (Max 1MB)</p>
+            <p className="text-sm text-slate-500 mt-1">Supporte .txt, .md, .json, .csv (Max 20MB)</p>
           </div>
         </div>
       </div>

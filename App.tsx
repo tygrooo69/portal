@@ -89,11 +89,15 @@ const App: React.FC = () => {
 
   // Document management
   const saveDocuments = (newDocs: DocumentItem[]) => {
+    // Always update State (RAM) so it works for the current session
     setDocuments(newDocs);
+    
     try {
+      // Attempt to save to LocalStorage (Persistence)
       localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
     } catch (e) {
-      alert("Erreur: Stockage local saturé. Impossible de sauvegarder plus de documents.");
+      console.warn("Storage quota exceeded:", e);
+      alert("Note : Ce document est volumineux. Il est chargé pour cette session et l'IA peut l'utiliser, mais il ne pourra pas être sauvegardé pour votre prochaine visite car le stockage du navigateur est plein.");
     }
   };
 
@@ -207,7 +211,7 @@ const App: React.FC = () => {
                  {/* Version Info */}
                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
                     <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.3.0</span>
+                      <span>Version 1.3.1</span>
                       <span>Lumina Portal</span>
                     </div>
                  </div>
