@@ -10,6 +10,14 @@ export interface AppItem {
   url?: string;
 }
 
+export interface DocumentItem {
+  id: string;
+  name: string;
+  content: string;
+  type: string;
+  uploadDate: string;
+}
+
 export interface User {
   name: string;
   email: string;
@@ -24,4 +32,4 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
-export type ViewMode = 'dashboard' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps';
+export type ViewMode = 'dashboard' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs';

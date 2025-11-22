@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Bot, User as UserIcon, Loader2 } from 'lucide-react';
-import { ChatMessage } from '../types';
+import { ChatMessage, DocumentItem } from '../types';
 import { generateAIResponse } from '../services/geminiService';
 
 interface AIAssistantProps {
   apiKey?: string;
+  documents?: DocumentItem[];
 }
 
-export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey }) => {
+export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey, documents = [] }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -49,7 +50,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey }) => {
         parts: [{ text: m.text }]
       }));
 
-      const responseText = await generateAIResponse(userMsg.text, history, apiKey);
+      const responseText = await generateAIResponse(userMsg.text, history, apiKey, documents);
 
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -87,7 +88,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey }) => {
         </div>
         <div>
           <h2 className="font-semibold text-slate-800 dark:text-white">Assistant Lumina</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Propulsé par Gemini 2.5</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Propulsé par Gemini 2.5 
+            {documents.length > 0 && <span className="ml-1 text-blue-500">• {documents.length} docs indexés</span>}
+          </p>
         </div>
       </div>
 
@@ -140,7 +144,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ apiKey }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Posez une question..."
+            placeholder={documents.length > 0 ? "Posez une question sur vos documents..." : "Posez une question..."}
             className="w-full pl-4 pr-12 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl border-transparent focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder-slate-400"
           />
           <button

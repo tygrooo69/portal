@@ -3,7 +3,8 @@ import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
-import { ViewMode, AppItem } from './types';
+import { AdminDocuments } from './components/AdminDocuments';
+import { ViewMode, AppItem, DocumentItem } from './types';
 import { Moon, Sun, Key, Save, Check } from 'lucide-react';
 
 const DEFAULT_APPS: AppItem[] = [
@@ -20,6 +21,7 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [apps, setApps] = useState<AppItem[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [apiKey, setApiKey] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
@@ -35,6 +37,16 @@ const App: React.FC = () => {
       }
     } else {
       setApps(DEFAULT_APPS);
+    }
+
+    // Load Documents from local storage
+    const savedDocs = localStorage.getItem('lumina_documents');
+    if (savedDocs) {
+      try {
+        setDocuments(JSON.parse(savedDocs));
+      } catch (e) {
+        console.error('Failed to parse documents', e);
+      }
     }
 
     // Load API Key
@@ -75,6 +87,24 @@ const App: React.FC = () => {
     saveApps(apps.filter(a => a.id !== id));
   };
 
+  // Document management
+  const saveDocuments = (newDocs: DocumentItem[]) => {
+    setDocuments(newDocs);
+    try {
+      localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
+    } catch (e) {
+      alert("Erreur: Stockage local saturé. Impossible de sauvegarder plus de documents.");
+    }
+  };
+
+  const handleAddDocument = (doc: DocumentItem) => {
+    saveDocuments([...documents, doc]);
+  };
+
+  const handleDeleteDocument = (id: string) => {
+    saveDocuments(documents.filter(d => d.id !== id));
+  };
+
   const handleSaveApiKey = () => {
     localStorage.setItem('lumina_api_key', tempApiKey);
     setApiKey(tempApiKey);
@@ -91,7 +121,7 @@ const App: React.FC = () => {
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
-            <AIAssistant apiKey={apiKey} />
+            <AIAssistant apiKey={apiKey} documents={documents} />
           </div>
         );
       case 'admin-apps':
@@ -101,6 +131,14 @@ const App: React.FC = () => {
             onAddApp={handleAddApp} 
             onUpdateApp={handleUpdateApp} 
             onDeleteApp={handleDeleteApp} 
+          />
+        );
+      case 'admin-docs':
+        return (
+          <AdminDocuments 
+            documents={documents}
+            onAddDocument={handleAddDocument}
+            onDeleteDocument={handleDeleteDocument}
           />
         );
       case 'apps':
@@ -169,7 +207,7 @@ const App: React.FC = () => {
                  {/* Version Info */}
                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
                     <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.2.0</span>
+                      <span>Version 1.3.0</span>
                       <span>Lumina Portal</span>
                     </div>
                  </div>
