@@ -2,15 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { AIAssistant } from './components/AIAssistant';
-import { ViewMode } from './types';
+import { AdminApps } from './components/AdminApps';
+import { ViewMode, AppItem } from './types';
 import { Moon, Sun } from 'lucide-react';
+
+const DEFAULT_APPS: AppItem[] = [
+  { id: '1', name: 'Drive Cloud', description: 'Stockage sécurisé', icon: 'Cloud', color: 'bg-blue-500', category: 'utilities', url: 'https://drive.google.com' },
+  { id: '2', name: 'Notes Pro', description: 'Prise de notes', icon: 'FileText', color: 'bg-yellow-500', category: 'productivity' },
+  { id: '3', name: 'Pixel Studio', description: 'Édition d\'images', icon: 'Image', color: 'bg-purple-500', category: 'creative' },
+  { id: '4', name: 'Data View', description: 'Analytique', icon: 'PieChart', color: 'bg-green-500', category: 'analytics' },
+  { id: '5', name: 'Security', description: 'Centre de sécurité', icon: 'Shield', color: 'bg-red-500', category: 'utilities' },
+  { id: '6', name: 'Calendar', description: 'Gestion du temps', icon: 'Calendar', color: 'bg-indigo-500', category: 'productivity' },
+];
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [apps, setApps] = useState<AppItem[]>([]);
 
   useEffect(() => {
+    // Load apps from local storage or use defaults
+    const savedApps = localStorage.getItem('lumina_apps');
+    if (savedApps) {
+      try {
+        setApps(JSON.parse(savedApps));
+      } catch (e) {
+        setApps(DEFAULT_APPS);
+      }
+    } else {
+      setApps(DEFAULT_APPS);
+    }
+
     // Check system preference on mount
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setIsDarkMode(true);
@@ -25,17 +48,43 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
+  const saveApps = (newApps: AppItem[]) => {
+    setApps(newApps);
+    localStorage.setItem('lumina_apps', JSON.stringify(newApps));
+  };
+
+  const handleAddApp = (app: AppItem) => {
+    saveApps([...apps, app]);
+  };
+
+  const handleUpdateApp = (updatedApp: AppItem) => {
+    saveApps(apps.map(a => a.id === updatedApp.id ? updatedApp : a));
+  };
+
+  const handleDeleteApp = (id: string) => {
+    saveApps(apps.filter(a => a.id !== id));
+  };
+
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   const renderContent = () => {
     switch (view) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard apps={apps} />;
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
             <AIAssistant />
           </div>
+        );
+      case 'admin-apps':
+        return (
+          <AdminApps 
+            apps={apps} 
+            onAddApp={handleAddApp} 
+            onUpdateApp={handleUpdateApp} 
+            onDeleteApp={handleDeleteApp} 
+          />
         );
       case 'apps':
         return (
@@ -71,7 +120,7 @@ const App: React.FC = () => {
            </div>
         );
       default:
-        return <Dashboard />;
+        return <Dashboard apps={apps} />;
     }
   };
 

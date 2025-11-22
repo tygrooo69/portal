@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, FileText, Image as ImageIcon, PieChart, Shield, Bell, Calendar } from 'lucide-react';
+import { Search, Cloud, Bell } from 'lucide-react';
 import { AppItem } from '../types';
+import { getIcon } from '../utils/iconHelper';
 
-const apps: AppItem[] = [
-  { id: '1', name: 'Drive Cloud', description: 'Stockage sécurisé', icon: Cloud, color: 'bg-blue-500', category: 'utilities' },
-  { id: '2', name: 'Notes Pro', description: 'Prise de notes', icon: FileText, color: 'bg-yellow-500', category: 'productivity' },
-  { id: '3', name: 'Pixel Studio', description: 'Édition d\'images', icon: ImageIcon, color: 'bg-purple-500', category: 'creative' },
-  { id: '4', name: 'Data View', description: 'Analytique', icon: PieChart, color: 'bg-green-500', category: 'analytics' },
-  { id: '5', name: 'Security', description: 'Centre de sécurité', icon: Shield, color: 'bg-red-500', category: 'utilities' },
-  { id: '6', name: 'Calendar', description: 'Gestion du temps', icon: Calendar, color: 'bg-indigo-500', category: 'productivity' },
-];
+interface DashboardProps {
+  apps: AppItem[];
+}
 
-export const Dashboard: React.FC = () => {
+export const Dashboard: React.FC<DashboardProps> = ({ apps }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -25,6 +21,12 @@ export const Dashboard: React.FC = () => {
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+
+  const handleAppClick = (app: AppItem) => {
+    if (app.url) {
+      window.open(app.url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   return (
@@ -74,20 +76,30 @@ export const Dashboard: React.FC = () => {
               <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mes Applications</h2>
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {apps.map((app) => (
-                <button 
-                  key={app.id}
-                  className="group flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover:-translate-y-1"
-                >
-                  <div className={`w-14 h-14 ${app.color} rounded-2xl flex items-center justify-center text-white shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <app.icon size={28} />
-                  </div>
-                  <span className="font-semibold text-slate-800 dark:text-white">{app.name}</span>
-                  <span className="text-xs text-slate-400 mt-1">{app.description}</span>
-                </button>
-              ))}
-            </div>
+            {apps.length === 0 ? (
+               <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
+                 <p className="text-slate-500">Aucune application configurée. Allez dans "Gestion Apps" pour commencer.</p>
+               </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {apps.map((app) => {
+                  const Icon = getIcon(app.icon);
+                  return (
+                    <button 
+                      key={app.id}
+                      onClick={() => handleAppClick(app)}
+                      className="group flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover:-translate-y-1"
+                    >
+                      <div className={`w-14 h-14 ${app.color} rounded-2xl flex items-center justify-center text-white shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                        <Icon size={28} />
+                      </div>
+                      <span className="font-semibold text-slate-800 dark:text-white">{app.name}</span>
+                      <span className="text-xs text-slate-400 mt-1">{app.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </section>
         </div>
 

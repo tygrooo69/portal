@@ -4,9 +4,10 @@ export interface AppItem {
   id: string;
   name: string;
   description: string;
-  icon: LucideIcon;
+  icon: string; // Changed to string for storage/serialization
   color: string;
   category: 'productivity' | 'utilities' | 'creative' | 'analytics';
+  url?: string;
 }
 
 export interface User {
@@ -23,4 +24,4 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
-export type ViewMode = 'dashboard' | 'apps' | 'settings' | 'ai-chat';
+export type ViewMode = 'dashboard' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps';
