@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit, FileType } from 'lucide-react';
+import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit, FileType, ChevronLeft } from 'lucide-react';
 import { DocumentItem } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
@@ -11,9 +11,10 @@ interface AdminDocumentsProps {
   documents: DocumentItem[];
   onAddDocument: (doc: DocumentItem) => void;
   onDeleteDocument: (id: string) => void;
+  onBack?: () => void;
 }
 
-export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAddDocument, onDeleteDocument }) => {
+export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAddDocument, onDeleteDocument, onBack }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -126,9 +127,19 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
 
   return (
     <div className="p-6 md:p-8 h-full overflow-y-auto">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Base de connaissances</h2>
-        <p className="text-slate-500">Importez des documents pour donner du contexte à l'assistant Lumina.</p>
+      <div className="mb-8 flex items-center gap-4">
+         {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-blue-600 transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+         <div>
+           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Base de connaissances</h2>
+           <p className="text-slate-500">Importez des documents pour donner du contexte à l'assistant Lumina.</p>
+         </div>
       </div>
 
       {/* Upload Zone */}

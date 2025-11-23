@@ -4,8 +4,9 @@ import { Dashboard } from './components/Dashboard';
 import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { AdminDocuments } from './components/AdminDocuments';
+import { Settings } from './components/Settings';
 import { ViewMode, AppItem, DocumentItem } from './types';
-import { Moon, Sun, Key } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { api } from './services/api';
 
 const DEFAULT_APPS: AppItem[] = [
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   
   // Initialize with empty string, will be populated by server or localStorage
   const [apiKey, setApiKey] = useState('');
+  const [adminPassword, setAdminPassword] = useState('admin');
 
   // Initialize Data
   useEffect(() => {
@@ -40,6 +42,9 @@ const App: React.FC = () => {
         // Load API key from server if available
         if (serverData.apiKey) {
           setApiKey(serverData.apiKey);
+        }
+        if (serverData.adminPassword) {
+          setAdminPassword(serverData.adminPassword);
         }
       } else {
         // 2. Fallback to LocalStorage (Client)
@@ -87,18 +92,19 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   // Unified Save Function
-  // Accepts an optional newKey to ensure we save the updated key when it changes
-  const persistData = async (newApps: AppItem[], newDocs: DocumentItem[], newKey?: string) => {
-    // Determine the key to save: use the new one if provided, otherwise current state
+  // Accepts optional newKey or newPassword to ensure update
+  const persistData = async (newApps: AppItem[], newDocs: DocumentItem[], newKey?: string, newPwd?: string) => {
     const keyToSave = newKey !== undefined ? newKey : apiKey;
+    const pwdToSave = newPwd !== undefined ? newPwd : adminPassword;
 
     // Update UI immediately
     setApps(newApps);
     setDocuments(newDocs);
     if (newKey !== undefined) setApiKey(newKey);
+    if (newPwd !== undefined) setAdminPassword(newPwd);
 
     // Try Save to Server (storage.json)
-    const serverSaved = await api.saveData(newApps, newDocs, keyToSave);
+    const serverSaved = await api.saveData(newApps, newDocs, keyToSave, pwdToSave);
     
     if (!serverSaved) {
       // Fallback: Save to LocalStorage
@@ -113,8 +119,11 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    // We persist the current apps/docs along with the NEW key
-    persistData(apps, documents, key);
+    persistData(apps, documents, key, undefined);
+  };
+
+  const handleSaveAdminPassword = (password: string) => {
+    persistData(apps, documents, undefined, password);
   };
 
   const handleAddApp = (app: AppItem) => {
@@ -157,7 +166,8 @@ const App: React.FC = () => {
             apps={apps} 
             onAddApp={handleAddApp} 
             onUpdateApp={handleUpdateApp} 
-            onDeleteApp={handleDeleteApp} 
+            onDeleteApp={handleDeleteApp}
+            onBack={() => setView('settings')}
           />
         );
       case 'admin-docs':
@@ -166,67 +176,20 @@ const App: React.FC = () => {
             documents={documents}
             onAddDocument={handleAddDocument}
             onDeleteDocument={handleDeleteDocument}
+            onBack={() => setView('settings')}
           />
-        );
-      case 'apps':
-        return (
-          <div className="p-8 flex items-center justify-center h-full">
-             <div className="text-center">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Catalogue d'Applications</h2>
-                <p className="text-slate-500">Fonctionnalité à venir dans la v2.0</p>
-             </div>
-          </div>
         );
       case 'settings':
         return (
-           <div className="p-8 flex flex-col max-w-2xl mx-auto">
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Paramètres</h2>
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-200 dark:divide-slate-800">
-                 
-                 {/* Appearance Settings */}
-                 <div className="p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-slate-800 dark:text-white">Apparence</p>
-                      <p className="text-sm text-slate-500">Basculer entre le mode clair et sombre</p>
-                    </div>
-                    <button onClick={toggleTheme} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-700">
-                       {isDarkMode ? <Moon size={20} className="text-blue-400" /> : <Sun size={20} className="text-orange-500" />}
-                    </button>
-                 </div>
-
-                 {/* API Key Settings */}
-                 <div className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Key size={18} className="text-slate-400" />
-                      <p className="font-medium text-slate-800 dark:text-white">Clé API Gemini</p>
-                    </div>
-                    <p className="text-sm text-slate-500 mb-3">
-                      Définissez votre propre clé API pour surcharger celle du serveur. 
-                      La clé est stockée dans <strong>storage.json</strong> sur le serveur.
-                    </p>
-                    <div className="flex gap-2">
-                      <input 
-                        type="password" 
-                        value={apiKey}
-                        onChange={(e) => handleSaveApiKey(e.target.value)}
-                        placeholder="Collez votre clé API ici (AIza...)"
-                        className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
-                      />
-                    </div>
-                    {apiKey && (
-                      <p className="text-xs text-green-600 mt-2">✓ Clé API enregistrée sur le serveur</p>
-                    )}
-                 </div>
-
-                 {/* Version Info */}
-                 <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
-                    <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.5.2</span>
-                      <span>Lumina Portal</span>
-                    </div>
-                 </div>
-              </div>
-           </div>
+          <Settings 
+            currentPassword={adminPassword}
+            onNavigate={setView}
+            onSavePassword={handleSaveAdminPassword}
+            apiKey={apiKey}
+            onSaveApiKey={handleSaveApiKey}
+            isDarkMode={isDarkMode}
+            toggleTheme={toggleTheme}
+          />
         );
       default:
         return <Dashboard apps={apps} documents={documents} />;
@@ -243,16 +206,18 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 h-full overflow-hidden flex flex-col relative">
-        {/* Theme Toggle (Floating) */}
-        <div className="absolute top-6 right-6 z-40 hidden md:block">
-          <button 
-            onClick={toggleTheme}
-            className="p-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm border border-slate-200 dark:border-slate-700 rounded-full text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-all"
-            title="Changer le thème"
-          >
-            {isDarkMode ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
-        </div>
+        {/* Theme Toggle (Floating) - Visible only on Dashboard/Chat to keep Settings clean */}
+        {view !== 'settings' && view !== 'admin-apps' && view !== 'admin-docs' && (
+          <div className="absolute top-6 right-6 z-40 hidden md:block">
+            <button 
+              onClick={toggleTheme}
+              className="p-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm border border-slate-200 dark:border-slate-700 rounded-full text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-all"
+              title="Changer le thème"
+            >
+              {isDarkMode ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+          </div>
+        )}
 
         {renderContent()}
       </main>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Save, X, Edit2, Check } from 'lucide-react';
+import { Plus, Trash2, X, Edit2, Check, ChevronLeft } from 'lucide-react';
 import { AppItem } from '../types';
 import { getIcon, getIconNames } from '../utils/iconHelper';
 
@@ -8,6 +8,7 @@ interface AdminAppsProps {
   onAddApp: (app: AppItem) => void;
   onUpdateApp: (app: AppItem) => void;
   onDeleteApp: (id: string) => void;
+  onBack?: () => void;
 }
 
 const COLORS = [
@@ -16,7 +17,7 @@ const COLORS = [
   'bg-teal-500', 'bg-cyan-500', 'bg-slate-500'
 ];
 
-export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateApp, onDeleteApp }) => {
+export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateApp, onDeleteApp, onBack }) => {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<AppItem>>({});
   const [isAdding, setIsAdding] = useState(false);
@@ -123,9 +124,19 @@ export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateAp
   return (
     <div className="p-6 md:p-8 overflow-y-auto h-full">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Gestion des Applications</h2>
-          <p className="text-slate-500">Ajoutez, modifiez ou supprimez les raccourcis du portail.</p>
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-blue-600 transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Gestion des Applications</h2>
+            <p className="text-slate-500">Ajoutez, modifiez ou supprimez les raccourcis du portail.</p>
+          </div>
         </div>
         <button 
           onClick={() => setIsAdding(!isAdding)}

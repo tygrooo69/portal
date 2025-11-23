@@ -4,6 +4,7 @@ interface StorageData {
   apps: AppItem[];
   documents: DocumentItem[];
   apiKey?: string;
+  adminPassword?: string;
 }
 
 export const api = {
@@ -21,14 +22,14 @@ export const api = {
     }
   },
 
-  async saveData(apps: AppItem[], documents: DocumentItem[], apiKey?: string): Promise<boolean> {
+  async saveData(apps: AppItem[], documents: DocumentItem[], apiKey?: string, adminPassword?: string): Promise<boolean> {
     try {
       const response = await fetch('/api/data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apps, documents, apiKey }),
+        body: JSON.stringify({ apps, documents, apiKey, adminPassword }),
       });
       return response.ok;
     } catch (error) {

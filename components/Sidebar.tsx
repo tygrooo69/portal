@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Settings, MessageSquare, Menu, AppWindow, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, MessageSquare, Menu } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface SidebarProps {
@@ -13,8 +13,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
   const navItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'ai-chat', label: 'Assistant Lumina', icon: MessageSquare },
-    { id: 'admin-apps', label: 'Gestion Apps', icon: AppWindow },
-    { id: 'admin-docs', label: 'Gestion Docs', icon: FileText },
     { id: 'settings', label: 'Paramètres', icon: Settings },
   ];
 
@@ -48,7 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       <nav className="flex-1 px-4 space-y-2 mt-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = currentView === item.id;
+          const isActive = currentView === item.id || 
+                           (item.id === 'settings' && (currentView === 'admin-apps' || currentView === 'admin-docs'));
           return (
             <button
               key={item.id}
