@@ -25,10 +25,8 @@ const App: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Initialization optimized: Load key synchronously so it's available on first render
-  const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('lumina_api_key') || '';
-  });
+  // Initialize with empty string, will be populated by server or localStorage
+  const [apiKey, setApiKey] = useState('');
 
   // Initialize Data
   useEffect(() => {
@@ -39,6 +37,10 @@ const App: React.FC = () => {
       if (serverData) {
         setApps(serverData.apps.length > 0 ? serverData.apps : DEFAULT_APPS);
         setDocuments(serverData.documents);
+        // Load API key from server if available
+        if (serverData.apiKey) {
+          setApiKey(serverData.apiKey);
+        }
       } else {
         // 2. Fallback to LocalStorage (Client)
         const savedApps = localStorage.getItem('lumina_apps');
@@ -60,6 +62,9 @@ const App: React.FC = () => {
             console.error(e);
           }
         }
+        
+        const savedKey = localStorage.getItem('lumina_api_key');
+        if (savedKey) setApiKey(savedKey);
       }
 
       // Check theme
@@ -82,19 +87,25 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   // Unified Save Function
-  const persistData = async (newApps: AppItem[], newDocs: DocumentItem[]) => {
+  // Accepts an optional newKey to ensure we save the updated key when it changes
+  const persistData = async (newApps: AppItem[], newDocs: DocumentItem[], newKey?: string) => {
+    // Determine the key to save: use the new one if provided, otherwise current state
+    const keyToSave = newKey !== undefined ? newKey : apiKey;
+
     // Update UI immediately
     setApps(newApps);
     setDocuments(newDocs);
+    if (newKey !== undefined) setApiKey(newKey);
 
-    // Try Save to Server
-    const serverSaved = await api.saveData(newApps, newDocs);
+    // Try Save to Server (storage.json)
+    const serverSaved = await api.saveData(newApps, newDocs, keyToSave);
     
     if (!serverSaved) {
       // Fallback: Save to LocalStorage
       try {
         localStorage.setItem('lumina_apps', JSON.stringify(newApps));
         localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
+        if (newKey !== undefined) localStorage.setItem('lumina_api_key', newKey);
       } catch (e) {
         console.warn("LocalStorage quota exceeded or error", e);
       }
@@ -102,8 +113,8 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    setApiKey(key);
-    localStorage.setItem('lumina_api_key', key);
+    // We persist the current apps/docs along with the NEW key
+    persistData(apps, documents, key);
   };
 
   const handleAddApp = (app: AppItem) => {
@@ -191,7 +202,7 @@ const App: React.FC = () => {
                     </div>
                     <p className="text-sm text-slate-500 mb-3">
                       Définissez votre propre clé API pour surcharger celle du serveur. 
-                      La clé est stockée uniquement dans votre navigateur.
+                      La clé est stockée dans <strong>storage.json</strong> sur le serveur.
                     </p>
                     <div className="flex gap-2">
                       <input 
@@ -203,14 +214,14 @@ const App: React.FC = () => {
                       />
                     </div>
                     {apiKey && (
-                      <p className="text-xs text-green-600 mt-2">✓ Clé API enregistrée localement</p>
+                      <p className="text-xs text-green-600 mt-2">✓ Clé API enregistrée sur le serveur</p>
                     )}
                  </div>
 
                  {/* Version Info */}
                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50">
                     <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>Version 1.5.1</span>
+                      <span>Version 1.5.2</span>
                       <span>Lumina Portal</span>
                     </div>
                  </div>

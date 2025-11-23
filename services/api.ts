@@ -3,6 +3,7 @@ import { AppItem, DocumentItem } from '../types';
 interface StorageData {
   apps: AppItem[];
   documents: DocumentItem[];
+  apiKey?: string;
 }
 
 export const api = {
@@ -10,8 +11,6 @@ export const api = {
     try {
       const response = await fetch('/api/data');
       if (!response.ok) {
-        // If we are in dev mode without the server proxy, this might fail (404).
-        // In production (Docker), this routes to server.js
         console.warn('API not accessible, falling back to localStorage logic in App');
         return null;
       }
@@ -22,14 +21,14 @@ export const api = {
     }
   },
 
-  async saveData(apps: AppItem[], documents: DocumentItem[]): Promise<boolean> {
+  async saveData(apps: AppItem[], documents: DocumentItem[], apiKey?: string): Promise<boolean> {
     try {
       const response = await fetch('/api/data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apps, documents }),
+        body: JSON.stringify({ apps, documents, apiKey }),
       });
       return response.ok;
     } catch (error) {

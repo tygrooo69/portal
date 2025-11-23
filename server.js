@@ -38,7 +38,7 @@ app.get('/api/data', async (req, res) => {
   } catch (error) {
     if (error.code === 'ENOENT') {
       // Return default structure if file doesn't exist
-      res.json({ apps: [], documents: [] });
+      res.json({ apps: [], documents: [], apiKey: "" });
     } else {
       console.error("Read error:", error);
       res.status(500).json({ error: 'Failed to read data' });
@@ -49,8 +49,23 @@ app.get('/api/data', async (req, res) => {
 // API: Save Data
 app.post('/api/data', async (req, res) => {
   try {
-    const { apps, documents } = req.body;
-    await fs.writeFile(DATA_FILE, JSON.stringify({ apps, documents }, null, 2));
+    // Destructure apiKey as well to save it
+    const { apps, documents, apiKey } = req.body;
+    
+    // Read existing data to preserve fields if not provided (optional safety)
+    let existingData = {};
+    try {
+       const fileContent = await fs.readFile(DATA_FILE, 'utf8');
+       existingData = JSON.parse(fileContent);
+    } catch (e) { /* ignore if file missing */ }
+
+    const dataToSave = {
+      apps: apps || existingData.apps || [],
+      documents: documents || existingData.documents || [],
+      apiKey: apiKey !== undefined ? apiKey : (existingData.apiKey || "")
+    };
+
+    await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
     res.json({ success: true });
   } catch (error) {
     console.error("Save error:", error);
