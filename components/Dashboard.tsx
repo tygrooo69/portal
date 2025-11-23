@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson } from 'lucide-react';
+import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft } from 'lucide-react';
 import { AppItem, DocumentItem } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
@@ -10,6 +10,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -40,6 +41,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+  };
+
+  // Filter apps based on search query
+  const filteredApps = apps.filter(app => 
+    app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    app.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && filteredApps.length > 0) {
+      handleAppClick(filteredApps[0]);
+    }
   };
 
   const getFileIcon = (type: string) => {
@@ -80,11 +93,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
         </div>
         <input
           type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="block w-full pl-11 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white placeholder-slate-400 transition-all"
           placeholder="Rechercher une application..."
         />
         <div className="absolute inset-y-0 right-2 flex items-center">
-          <span className="hidden sm:inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">CMD+K</span>
+          <span className="hidden sm:inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+            Entrée <CornerDownLeft size={10} />
+          </span>
         </div>
       </div>
 
@@ -95,16 +113,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
           {/* Section: Applications */}
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mes Applications</h2>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
+                {searchQuery ? 'Résultats de recherche' : 'Mes Applications'}
+              </h2>
             </div>
             
-            {apps.length === 0 ? (
+            {filteredApps.length === 0 ? (
                <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
-                 <p className="text-slate-500">Aucune application configurée. Allez dans "Gestion Apps" pour commencer.</p>
+                 <p className="text-slate-500">
+                   {searchQuery ? `Aucune application trouvée pour "${searchQuery}"` : 'Aucune application configurée. Allez dans "Gestion Apps" pour commencer.'}
+                 </p>
                </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {apps.map((app) => {
+                {filteredApps.map((app) => {
                   const Icon = getIcon(app.icon);
                   return (
                     <button 
