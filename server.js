@@ -150,16 +150,23 @@ const saveData = async (dataToSave) => {
 
       if (rowId) {
         // UPDATE existing row
-        const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${rowId}`;
+        // FIX: Remove ID from URL for PATCH, put in body instead
+        const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records`;
         console.log(`[WRITE] Updating NocoDB Record: ${rowId}`);
         
+        // Add ID to body to identify the record
+        const updateBody = {
+            Id: rowId,
+            ...body
+        };
+
         response = await fetch(targetUrl, {
           method: 'PATCH',
           headers: {
             'xc-token': NOCODB_TOKEN,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(body)
+          body: JSON.stringify(updateBody)
         });
       } else {
         // CREATE new row (Let NocoDB decide ID)
