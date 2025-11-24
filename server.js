@@ -17,14 +17,13 @@ const DATA_FILE = path.join(DATA_DIR, 'storage.json');
 const NOCODB_URL = process.env.NOCODB_URL; // ex: http://192.168.1.50:8080
 const NOCODB_TOKEN = process.env.NOCODB_TOKEN; // API Token (xc-token)
 const NOCODB_TABLE_ID = process.env.NOCODB_TABLE_ID; // Table ID
-const NOCODB_ROW_ID = process.env.NOCODB_ROW_ID || '1'; // Default to row 1
 
 // Check if NocoDB is configured
 const useNocoDB = !!(NOCODB_URL && NOCODB_TOKEN && NOCODB_TABLE_ID);
 
 if (useNocoDB) {
   console.log(`🔌 Mode NocoDB activé sur ${NOCODB_URL}`);
-  console.log(`   Table: ${NOCODB_TABLE_ID} | Row Target: ${NOCODB_ROW_ID}`);
+  console.log(`   Table: ${NOCODB_TABLE_ID}`);
 } else {
   console.log("📂 Mode Fichier Local activé (storage.json)");
   // Ensure data directory exists only if using local file
@@ -54,12 +53,49 @@ const getDefaultData = () => ({
   adminPassword: "admin" 
 });
 
+// Helper to get the first available record ID from NocoDB
+// This prevents ID collision errors by not hardcoding ID=1
+const getNocoDBRowId = async () => {
+  try {
+    const listUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records?limit=1`;
+    const response = await fetch(listUrl, {
+      method: 'GET',
+      headers: {
+        'xc-token': NOCODB_TOKEN,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) return null;
+    
+    const json = await response.json();
+    const list = json.list || [];
+    
+    if (list.length > 0) {
+      return list[0].Id; // Return the actual ID of the first row
+    }
+    return null; // No rows exist
+  } catch (e) {
+    console.error("Error finding row ID:", e.message);
+    return null;
+  }
+};
+
 // Strategy: Load Data
 const loadData = async () => {
   if (useNocoDB) {
     try {
-      const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${NOCODB_ROW_ID}`;
-      console.log(`[READ] Fetching NocoDB: ${targetUrl}`);
+      // 1. Get the dynamic Row ID
+      const rowId = await getNocoDBRowId();
+
+      if (!rowId) {
+        console.warn(`[READ] No records found in NocoDB table. Returning default data.`);
+        return getDefaultData();
+      }
+
+      // 2. Fetch that specific row
+      const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${rowId}`;
+      console.log(`[READ] Fetching NocoDB Record: ${rowId}`);
       
       const response = await fetch(targetUrl, {
         method: 'GET',
@@ -69,26 +105,14 @@ const loadData = async () => {
         }
       });
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.warn(`[READ] NocoDB Row ${NOCODB_ROW_ID} not found. Returning default data.`);
-          return getDefaultData();
-        }
-        const errText = await response.text();
-        console.error(`[READ] NocoDB Error (${response.status}): ${errText}`);
-        throw new Error(`NocoDB API Error (${response.status})`);
-      }
+      if (!response.ok) throw new Error(`NocoDB API Error (${response.status})`);
 
       const json = await response.json();
       
       // Try 'Data' (Case Sensitive usually) then 'data'
       const payload = json.Data || json.data;
 
-      if (!payload) {
-        console.warn(`[READ] NocoDB record found but 'Data' column is empty or missing.`);
-        console.log("Record content received:", JSON.stringify(json).substring(0, 200) + "...");
-        return getDefaultData();
-      }
+      if (!payload) return getDefaultData();
       
       return typeof payload === 'string' ? JSON.parse(payload) : payload;
 
@@ -116,38 +140,39 @@ const saveData = async (dataToSave) => {
     try {
       // Structure for NocoDB
       const body = {
-        Data: dataToSave
+        Data: JSON.stringify(dataToSave) // Ensure we send stringified JSON if column is LongText/JSON
       };
 
-      const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${NOCODB_ROW_ID}`;
-      console.log(`[WRITE] Saving to NocoDB: ${targetUrl}`);
+      // 1. Find existing row
+      const rowId = await getNocoDBRowId();
       
-      // 1. Try PATCH (Update)
-      let response = await fetch(targetUrl, {
-        method: 'PATCH',
-        headers: {
-          'xc-token': NOCODB_TOKEN,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
+      let response;
 
-      // 2. If 404, Try POST (Create)
-      if (response.status === 404) {
-        console.log(`[WRITE] Row ${NOCODB_ROW_ID} not found, attempting to CREATE it...`);
+      if (rowId) {
+        // UPDATE existing row
+        const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${rowId}`;
+        console.log(`[WRITE] Updating NocoDB Record: ${rowId}`);
+        
+        response = await fetch(targetUrl, {
+          method: 'PATCH',
+          headers: {
+            'xc-token': NOCODB_TOKEN,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+      } else {
+        // CREATE new row (Let NocoDB decide ID)
+        console.log(`[WRITE] Creating NEW NocoDB Record...`);
         const createUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records`;
         
-        // NocoDB creation often ignores ID passed in body if not configured, but we try
         response = await fetch(createUrl, {
             method: 'POST',
             headers: {
               'xc-token': NOCODB_TOKEN,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-              ...body, 
-              Id: parseInt(NOCODB_ROW_ID) // Try to force ID match
-            }) 
+            body: JSON.stringify(body)
         });
       }
 
