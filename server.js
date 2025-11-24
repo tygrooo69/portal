@@ -23,7 +23,8 @@ const NOCODB_ROW_ID = process.env.NOCODB_ROW_ID || '1'; // Default to row 1
 const useNocoDB = !!(NOCODB_URL && NOCODB_TOKEN && NOCODB_TABLE_ID);
 
 if (useNocoDB) {
-  console.log(`🔌 Mode NocoDB activé sur ${NOCODB_URL} (Table: ${NOCODB_TABLE_ID})`);
+  console.log(`🔌 Mode NocoDB activé sur ${NOCODB_URL}`);
+  console.log(`   Table: ${NOCODB_TABLE_ID} | Row Target: ${NOCODB_ROW_ID}`);
 } else {
   console.log("📂 Mode Fichier Local activé (storage.json)");
   // Ensure data directory exists only if using local file
@@ -58,7 +59,7 @@ const loadData = async () => {
   if (useNocoDB) {
     try {
       const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${NOCODB_ROW_ID}`;
-      console.log(`Fetching NocoDB: ${targetUrl}`);
+      console.log(`[READ] Fetching NocoDB: ${targetUrl}`);
       
       const response = await fetch(targetUrl, {
         method: 'GET',
@@ -70,30 +71,29 @@ const loadData = async () => {
       
       if (!response.ok) {
         if (response.status === 404) {
-          console.warn("NocoDB Row not found. Returning default data.");
+          console.warn(`[READ] NocoDB Row ${NOCODB_ROW_ID} not found. Returning default data.`);
           return getDefaultData();
         }
         const errText = await response.text();
-        throw new Error(`NocoDB API Error (${response.status}): ${errText}`);
+        console.error(`[READ] NocoDB Error (${response.status}): ${errText}`);
+        throw new Error(`NocoDB API Error (${response.status})`);
       }
 
       const json = await response.json();
       
-      // NocoDB returns the record. We look for a 'Data' column (case sensitive).
-      // Fallback to lowercase 'data' if 'Data' is missing.
+      // Try 'Data' (Case Sensitive usually) then 'data'
       const payload = json.Data || json.data;
 
       if (!payload) {
-        console.warn("NocoDB record found but 'Data' column is empty.");
+        console.warn(`[READ] NocoDB record found but 'Data' column is empty or missing.`);
+        console.log("Record content received:", JSON.stringify(json).substring(0, 200) + "...");
         return getDefaultData();
       }
       
-      // If NocoDB stores it as a stringified JSON, parse it. If it's already an object (JSON type), use it.
       return typeof payload === 'string' ? JSON.parse(payload) : payload;
 
     } catch (error) {
-      console.error("Failed to load from NocoDB:", error);
-      // Fallback to default in case of connection error to allow app to load (albeit empty)
+      console.error("[READ] Failed to load from NocoDB:", error.message);
       return getDefaultData();
     }
   } else {
@@ -114,14 +114,15 @@ const loadData = async () => {
 const saveData = async (dataToSave) => {
   if (useNocoDB) {
     try {
-      // Wrap the app state into the 'Data' column structure expected by NocoDB
+      // Structure for NocoDB
       const body = {
-        Data: dataToSave // Assuming the column name is 'Data' and type is JSON
+        Data: dataToSave
       };
 
       const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${NOCODB_ROW_ID}`;
+      console.log(`[WRITE] Saving to NocoDB: ${targetUrl}`);
       
-      // Try to update existing record
+      // 1. Try PATCH (Update)
       let response = await fetch(targetUrl, {
         method: 'PATCH',
         headers: {
@@ -131,34 +132,41 @@ const saveData = async (dataToSave) => {
         body: JSON.stringify(body)
       });
 
-      // If record 1 doesn't exist (404), try to create it
+      // 2. If 404, Try POST (Create)
       if (response.status === 404) {
-        console.log("NocoDB Row not found, attempting to create...");
+        console.log(`[WRITE] Row ${NOCODB_ROW_ID} not found, attempting to CREATE it...`);
         const createUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records`;
+        
+        // NocoDB creation often ignores ID passed in body if not configured, but we try
         response = await fetch(createUrl, {
             method: 'POST',
             headers: {
               'xc-token': NOCODB_TOKEN,
               'Content-Type': 'application/json'
             },
-            // We try to force ID if possible, otherwise we rely on just creating a row
-            body: JSON.stringify({ ...body, Id: NOCODB_ROW_ID }) 
+            body: JSON.stringify({ 
+              ...body, 
+              Id: parseInt(NOCODB_ROW_ID) // Try to force ID match
+            }) 
         });
       }
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`NocoDB Save Failed (${response.status}): ${errText}`);
+        console.error(`[WRITE] NocoDB Save Failed (${response.status}): ${errText}`);
+        throw new Error(`NocoDB Save Failed: ${response.status}`);
       }
-      
+
+      console.log("[WRITE] Successfully saved to NocoDB");
       return true;
     } catch (error) {
-      console.error("Failed to save to NocoDB:", error);
+      console.error("[WRITE] Failed to save to NocoDB:", error.message);
       throw error;
     }
   } else {
     // Local File Strategy
     await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
+    console.log("[WRITE] Saved to local file storage.json");
     return true;
   }
 };
@@ -171,8 +179,7 @@ app.get('/api/data', async (req, res) => {
     const data = await loadData();
     res.json(data);
   } catch (error) {
-    console.error("Read error:", error);
-    // Return default data structure on error to prevent frontend crash
+    console.error("Route Read error:", error);
     res.json({ apps: [], documents: [], apiKey: "", adminPassword: "admin" });
   }
 });
@@ -182,7 +189,7 @@ app.post('/api/data', async (req, res) => {
   try {
     const { apps, documents, apiKey, adminPassword } = req.body;
     
-    // Load existing data to merge/preserve fields if partial update (though frontend sends full state usually)
+    // Load existing to merge
     let existingData = await loadData();
 
     const dataToSave = {
@@ -195,12 +202,12 @@ app.post('/api/data', async (req, res) => {
     await saveData(dataToSave);
     res.json({ success: true });
   } catch (error) {
-    console.error("Save error:", error);
+    console.error("Route Save error:", error);
     res.status(500).json({ error: 'Failed to save data' });
   }
 });
 
-// Handle React Routing (return index.html for any unknown route)
+// Handle React Routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
