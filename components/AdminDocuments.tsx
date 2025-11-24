@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit, FileType, ChevronLeft } from 'lucide-react';
+import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit, FileType, ChevronLeft, Loader2 } from 'lucide-react';
 import { DocumentItem } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
@@ -9,15 +9,18 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.j
 
 interface AdminDocumentsProps {
   documents: DocumentItem[];
-  onAddDocument: (doc: DocumentItem) => void;
+  onAddDocuments: (docs: DocumentItem[]) => void; // Changed to accept an array
   onDeleteDocument: (id: string) => void;
   onBack?: () => void;
 }
 
-export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAddDocument, onDeleteDocument, onBack }) => {
+export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAddDocuments, onDeleteDocument, onBack }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -47,17 +50,15 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
     return result.value;
   };
 
-  const processFile = async (file: File) => {
+  // Converts a single file to a DocumentItem (or null if failed)
+  const convertFileToDoc = async (file: File): Promise<DocumentItem | null> => {
     // Max 20MB per file
     const MAX_SIZE = 20 * 1024 * 1024;
     
     if (file.size > MAX_SIZE) {
-      setError(`Le fichier ${file.name} est trop volumineux (max 20MB).`);
-      return;
+      setErrors(prev => [...prev, `Le fichier ${file.name} est trop volumineux (max 20MB).`]);
+      return null;
     }
-
-    setIsProcessing(true);
-    setError(null);
 
     try {
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'txt';
@@ -83,34 +84,62 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
         throw new Error("Impossible d'extraire du texte de ce fichier ou le fichier est vide.");
       }
 
-      const newDoc: DocumentItem = {
-        id: Date.now().toString() + Math.random().toString().slice(2, 5),
+      return {
+        id: Date.now().toString() + Math.random().toString().slice(2, 8), // More random ID for batch
         name: file.name,
         content: content,
         type: fileExt,
         uploadDate: new Date().toLocaleDateString('fr-FR')
       };
       
-      onAddDocument(newDoc);
     } catch (err) {
       console.error(err);
-      setError(`Erreur lors de la lecture de ${file.name} : ${(err as Error).message}`);
-    } finally {
-      setIsProcessing(false);
+      setErrors(prev => [...prev, `Erreur sur ${file.name} : ${(err as Error).message}`]);
+      return null;
     }
+  };
+
+  const processBatch = async (files: File[]) => {
+    setIsProcessing(true);
+    setErrors([]);
+    setTotalFiles(files.length);
+    setProcessedCount(0);
+
+    const validDocs: DocumentItem[] = [];
+
+    // Process sequentially to avoid browser freezing on many files, 
+    // but fast enough to feel concurrent.
+    for (const file of files) {
+      const doc = await convertFileToDoc(file);
+      if (doc) {
+        validDocs.push(doc);
+      }
+      setProcessedCount(prev => prev + 1);
+    }
+
+    if (validDocs.length > 0) {
+      onAddDocuments(validDocs);
+    }
+
+    setIsProcessing(false);
+    setTotalFiles(0);
+    setProcessedCount(0);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    files.forEach(file => processFile(file as File));
+    if (files.length > 0) {
+      processBatch(files);
+    }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      Array.from(e.target.files).forEach(file => processFile(file as File));
-      e.target.value = '';
+      const files = Array.from(e.target.files);
+      processBatch(files);
+      e.target.value = ''; // Reset input
     }
   };
 
@@ -155,10 +184,11 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
         onClick={() => !isProcessing && fileInputRef.current?.click()}
       >
         {isProcessing && (
-          <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center z-10">
-            <div className="flex flex-col items-center text-blue-600 animate-pulse">
-              <BrainCircuit size={48} />
-              <p className="mt-2 font-semibold">Analyse et extraction du texte...</p>
+          <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex items-center justify-center z-10 transition-opacity">
+            <div className="flex flex-col items-center text-blue-600">
+              <Loader2 size={48} className="animate-spin mb-3" />
+              <p className="font-semibold text-lg">Traitement en cours...</p>
+              <p className="text-sm text-slate-500">{processedCount} / {totalFiles} fichiers</p>
             </div>
           </div>
         )}
@@ -176,16 +206,23 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
             <Upload size={32} />
           </div>
           <div>
-            <p className="text-lg font-semibold text-slate-800 dark:text-white">Cliquez ou glissez des fichiers ici</p>
-            <p className="text-sm text-slate-500 mt-1">Supporte .txt, .md, .json, .pdf, .docx (Max 20MB)</p>
+            <p className="text-lg font-semibold text-slate-800 dark:text-white">Cliquez ou glissez vos fichiers ici</p>
+            <p className="text-sm text-slate-500 mt-1">Sélection multiple supportée (Max 20MB par fichier)</p>
           </div>
         </div>
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-xl flex items-center gap-2 border border-red-100 dark:border-red-800/50">
-          <AlertCircle size={20} />
-          <span>{error}</span>
+      {errors.length > 0 && (
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-xl border border-red-100 dark:border-red-800/50">
+          <div className="flex items-center gap-2 mb-2 font-medium">
+             <AlertCircle size={20} />
+             <span>Certains fichiers n'ont pas pu être importés :</span>
+          </div>
+          <ul className="list-disc list-inside text-sm opacity-80">
+            {errors.map((err, idx) => (
+              <li key={idx}>{err}</li>
+            ))}
+          </ul>
         </div>
       )}
 

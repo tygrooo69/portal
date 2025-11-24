@@ -138,8 +138,9 @@ const App: React.FC = () => {
     persistData(apps.filter(a => a.id !== id), documents);
   };
 
-  const handleAddDocument = (doc: DocumentItem) => {
-    persistData(apps, [...documents, doc]);
+  const handleAddDocuments = (newDocs: DocumentItem[]) => {
+    // Merge new documents with existing ones
+    persistData(apps, [...documents, ...newDocs]);
   };
 
   const handleDeleteDocument = (id: string) => {
@@ -174,7 +175,7 @@ const App: React.FC = () => {
         return (
           <AdminDocuments 
             documents={documents}
-            onAddDocument={handleAddDocument}
+            onAddDocuments={handleAddDocuments} // Use plural handler
             onDeleteDocument={handleDeleteDocument}
             onBack={() => setView('settings')}
           />
