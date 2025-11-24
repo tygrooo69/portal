@@ -104,12 +104,12 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    files.forEach(file => processFile(file));
+    files.forEach(file => processFile(file as File));
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      Array.from(e.target.files).forEach(file => processFile(file));
+      Array.from(e.target.files).forEach(file => processFile(file as File));
       e.target.value = '';
     }
   };
