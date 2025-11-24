@@ -117,7 +117,17 @@ export const generateAIResponse = async (
     // Inject document context if available using RAG logic
     if (documents && documents.length > 0) {
       const contextData = findRelevantContext(prompt, documents);
-      systemInstruction += `\n\nIMPORTANT : Tu as accès aux extraits de documents internes ci-dessous (sélectionnés pour leur pertinence avec la question). Utilise ces informations pour répondre. Si l'information n'est pas dans le contexte, dis-le.\n\n${contextData}`;
+      systemInstruction += `\n\nCONTEXTE DOCUMENTAIRE (RAG) :
+Tu disposes ci-dessous d'extraits de documents internes pertinents pour la question.
+
+CONSIGNES STRICTES POUR LES RÉPONSES BASÉES SUR LES DOCUMENTS :
+1. Utilise prioritairement ces informations pour répondre.
+2. Si tu utilises une information venant d'un document, tu DOIS citer le nom du document (ex: [Source: NomDuFichier.pdf]).
+3. À la toute fin de ta réponse, ajoute systématiquement une ligne "Sources utilisées :" listant les noms des documents consultés pour cette réponse.
+4. Si l'information n'est pas dans les documents fournis, dis-le honnêtement et essaie de répondre avec tes connaissances générales en précisant que cela ne vient pas des documents.
+
+EXTRAITS DES DOCUMENTS :
+${contextData}`;
     }
 
     // Updated to gemini-2.5-flash to avoid 404 and deprecation errors
