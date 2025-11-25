@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle } from 'lucide-react';
-import { AppItem, DocumentItem, Project } from '../types';
+import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare } from 'lucide-react';
+import { AppItem, DocumentItem, Project, Task } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
 interface DashboardProps {
   apps: AppItem[];
   documents: DocumentItem[];
   projects?: Project[];
+  tasks?: Task[];
   onProjectClick?: (projectId: string) => void;
+  onTaskClick?: (taskId: string, projectId: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ apps, documents, projects = [], onProjectClick }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ 
+  apps, 
+  documents, 
+  projects = [], 
+  tasks = [], 
+  onProjectClick,
+  onTaskClick 
+}) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -51,9 +60,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents, projects 
     app.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Filter projects based on search query
+  const filteredProjects = searchQuery ? projects.filter(proj => 
+    proj.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (proj.description && proj.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  ) : [];
+
+  // Filter tasks based on search query
+  const filteredTasks = searchQuery ? tasks.filter(task => 
+    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  ) : [];
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && filteredApps.length > 0) {
-      handleAppClick(filteredApps[0]);
+    if (e.key === 'Enter') {
+      if (filteredApps.length > 0) handleAppClick(filteredApps[0]);
+      // Logic could be expanded to select first project/task
     }
   };
 
@@ -125,7 +147,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents, projects 
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           className="block w-full pl-11 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white placeholder-slate-400 transition-all"
-          placeholder="Rechercher une application..."
+          placeholder="Rechercher une application, un projet ou une tâche..."
         />
         <div className="absolute inset-y-0 right-2 flex items-center">
           <span className="hidden sm:inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
@@ -138,20 +160,82 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents, projects 
         {/* Main Content - App Grid & Documents */}
         <div className="lg:col-span-2 space-y-8">
           
+          {/* SEARCH RESULTS SECTION */}
+          {searchQuery && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
+              
+              {/* Projects Results */}
+              {filteredProjects.length > 0 && (
+                <section>
+                   <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Projets trouvés</h2>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                     {filteredProjects.map(proj => (
+                       <div 
+                          key={proj.id}
+                          onClick={() => onProjectClick && onProjectClick(proj.id)}
+                          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 cursor-pointer flex items-center gap-3 transition-colors"
+                       >
+                          <div className={`w-3 h-3 rounded-full ${proj.color}`}></div>
+                          <div>
+                            <p className="font-semibold text-slate-800 dark:text-white">{proj.name}</p>
+                            <p className="text-xs text-slate-500">{proj.status === 'active' ? 'Actif' : 'En pause'}</p>
+                          </div>
+                       </div>
+                     ))}
+                   </div>
+                </section>
+              )}
+
+              {/* Tasks Results */}
+              {filteredTasks.length > 0 && (
+                <section>
+                   <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Tâches trouvées</h2>
+                   <div className="grid grid-cols-1 gap-2">
+                     {filteredTasks.map(task => {
+                       const parentProject = projects.find(p => p.id === task.projectId);
+                       return (
+                         <div 
+                            key={task.id}
+                            onClick={() => onTaskClick && onTaskClick(task.id, task.projectId)}
+                            className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 cursor-pointer flex items-center justify-between transition-colors"
+                         >
+                            <div className="flex items-center gap-3">
+                              <CheckSquare size={16} className={task.status === 'done' ? 'text-green-500' : 'text-blue-500'} />
+                              <div>
+                                <p className={`font-medium text-sm ${task.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-white'}`}>{task.title}</p>
+                                <p className="text-[10px] text-slate-400">Projet: {parentProject?.name || 'Inconnu'}</p>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded border ${task.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                              {task.priority === 'high' ? 'Urgent' : 'Normal'}
+                            </span>
+                         </div>
+                       );
+                     })}
+                   </div>
+                </section>
+              )}
+
+              {filteredProjects.length === 0 && filteredTasks.length === 0 && filteredApps.length === 0 && (
+                 <div className="text-center p-8 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                    <p className="text-slate-500">Aucun résultat trouvé pour "{searchQuery}"</p>
+                 </div>
+              )}
+              
+              <hr className="border-slate-200 dark:border-slate-800 my-4" />
+            </div>
+          )}
+
           {/* Section: Applications */}
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
-                {searchQuery ? 'Résultats de recherche' : 'Mes Applications'}
+                {searchQuery ? 'Applications' : 'Mes Applications'}
               </h2>
             </div>
             
-            {filteredApps.length === 0 ? (
-               <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
-                 <p className="text-slate-500">
-                   {searchQuery ? `Aucune application trouvée pour "${searchQuery}"` : 'Aucune application configurée. Allez dans "Gestion Apps" pour commencer.'}
-                 </p>
-               </div>
+            {filteredApps.length === 0 && searchQuery ? (
+               <div className="p-4 text-sm text-slate-500 italic">Aucune application correspondante.</div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {filteredApps.map((app) => {
@@ -172,47 +256,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents, projects 
                 })}
               </div>
             )}
-          </section>
-
-          {/* Section: Documents */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Documents & Ressources</h2>
-            </div>
-
-            {documents.length === 0 ? (
-               <div className="p-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
-                 <p className="text-sm text-slate-500">Aucun document disponible. Importez des fichiers dans "Gestion Docs".</p>
-               </div>
-            ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {documents.map((doc) => (
-                    <div key={doc.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl flex-shrink-0">
-                           {getFileIcon(doc.type)}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-medium text-slate-800 dark:text-white truncate pr-4">{doc.name}</h4>
-                          <p className="text-xs text-slate-500">
-                            {doc.uploadDate} • {Math.round(doc.content.length / 1024 * 10) / 10} KB
-                          </p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => handleDownload(doc)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-                        title="Télécharger"
-                      >
-                        <Download size={20} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            
+            {filteredApps.length === 0 && !searchQuery && (
+              <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
+                 <p className="text-slate-500">Aucune application configurée. Allez dans "Gestion Apps" pour commencer.</p>
               </div>
             )}
           </section>
+
+          {/* Section: Documents */}
+          {!searchQuery && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Documents & Ressources</h2>
+              </div>
+
+              {documents.length === 0 ? (
+                 <div className="p-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed">
+                   <p className="text-sm text-slate-500">Aucun document disponible. Importez des fichiers dans "Gestion Docs".</p>
+                 </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {documents.map((doc) => (
+                      <div key={doc.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl flex-shrink-0">
+                             {getFileIcon(doc.type)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-medium text-slate-800 dark:text-white truncate pr-4">{doc.name}</h4>
+                            <p className="text-xs text-slate-500">
+                              {doc.uploadDate} • {Math.round(doc.content.length / 1024 * 10) / 10} KB
+                            </p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleDownload(doc)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                          title="Télécharger"
+                        >
+                          <Download size={20} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
         </div>
 

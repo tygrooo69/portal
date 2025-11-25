@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [targetProjectId, setTargetProjectId] = useState<string | null>(null);
+  const [targetTaskId, setTargetTaskId] = useState<string | null>(null);
 
   const [isLoaded, setIsLoaded] = useState(false);
   
@@ -207,6 +208,13 @@ const App: React.FC = () => {
 
   const handleProjectClickFromDashboard = (projectId: string) => {
     setTargetProjectId(projectId);
+    setTargetTaskId(null); // Reset task selection
+    setView('projects');
+  };
+
+  const handleTaskClickFromDashboard = (taskId: string, projectId: string) => {
+    setTargetProjectId(projectId);
+    setTargetTaskId(taskId); // Set task selection
     setView('projects');
   };
 
@@ -217,13 +225,23 @@ const App: React.FC = () => {
 
     switch (view) {
       case 'dashboard':
-        return <Dashboard apps={apps} documents={documents} projects={projects} onProjectClick={handleProjectClickFromDashboard} />;
+        return (
+          <Dashboard 
+            apps={apps} 
+            documents={documents} 
+            projects={projects} 
+            tasks={tasks}
+            onProjectClick={handleProjectClickFromDashboard} 
+            onTaskClick={handleTaskClickFromDashboard}
+          />
+        );
       case 'projects':
         return (
           <ProjectManager 
              projects={projects}
              tasks={tasks}
              initialActiveProjectId={targetProjectId}
+             initialEditingTaskId={targetTaskId}
              onAddProject={handleAddProject}
              onUpdateProject={handleUpdateProject}
              onDeleteProject={handleDeleteProject}
@@ -278,7 +296,7 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans transition-colors duration-300">
       <Sidebar 
         currentView={view} 
-        onNavigate={(v) => { setView(v); setTargetProjectId(null); }} 
+        onNavigate={(v) => { setView(v); setTargetProjectId(null); setTargetTaskId(null); }} 
         isCollapsed={isSidebarCollapsed}
         toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />

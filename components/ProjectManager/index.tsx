@@ -12,6 +12,7 @@ interface ProjectManagerProps {
   projects: Project[];
   tasks: Task[];
   initialActiveProjectId?: string | null;
+  initialEditingTaskId?: string | null;
   onAddProject: (project: Project) => void;
   onUpdateProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
@@ -24,6 +25,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   projects,
   tasks,
   initialActiveProjectId = null,
+  initialEditingTaskId = null,
   onAddProject,
   onUpdateProject,
   onDeleteProject,
@@ -34,18 +36,32 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialActiveProjectId);
   const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list'>('board');
   
-  useEffect(() => {
-    if (initialActiveProjectId) {
-      setActiveProjectId(initialActiveProjectId);
-    }
-  }, [initialActiveProjectId]);
-
   // Modals State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
+
+  useEffect(() => {
+    if (initialActiveProjectId) {
+      setActiveProjectId(initialActiveProjectId);
+    }
+  }, [initialActiveProjectId]);
+
+  // Effect to handle direct navigation to a task from Dashboard search
+  useEffect(() => {
+    if (initialEditingTaskId) {
+      const taskToEdit = tasks.find(t => t.id === initialEditingTaskId);
+      if (taskToEdit) {
+        setEditingTask(taskToEdit);
+        // Ensure the project is active if a task is selected
+        if (taskToEdit.projectId !== activeProjectId) {
+          setActiveProjectId(taskToEdit.projectId);
+        }
+      }
+    }
+  }, [initialEditingTaskId, tasks]);
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const projectTasks = activeProjectId ? tasks.filter(t => t.projectId === activeProjectId) : [];
@@ -239,7 +255,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           task={editingTask}
           onSave={(updated) => { onUpdateTask(updated as Task); }}
           onDelete={onDeleteTask}
-          onClose={() => setEditingTask(null)}
+          onClose={() => { setEditingTask(null); }}
         />
       )}
 
