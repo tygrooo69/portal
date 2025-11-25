@@ -13,6 +13,16 @@ interface AssistantDashboardProps {
   onBack: () => void;
 }
 
+// Helper to calculate ISO week number
+const getWeekNumber = (dateString: string) => {
+  const date = new Date(dateString);
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
 export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
   users, timesheets, leaveRequests, onSaveTimesheet, onUpdateLeaveRequest, onBack
 }) => {
@@ -224,7 +234,7 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                      )}
                    </td>
                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                      {isSheet ? `Sem. du ${new Date(item.weekStartDate).toLocaleDateString()}` : `${new Date(item.startDate).toLocaleDateString()} -> ${new Date(item.endDate).toLocaleDateString()}`}
+                      {isSheet ? `Sem. ${getWeekNumber(item.weekStartDate)} (${new Date(item.weekStartDate).toLocaleDateString()})` : `${new Date(item.startDate).toLocaleDateString()} -> ${new Date(item.endDate).toLocaleDateString()}`}
                    </td>
                    <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase
@@ -256,15 +266,15 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
         </table>
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Modal - Significantly Increased Size */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col max-h-[95vh]">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-[90vw] border border-slate-200 dark:border-slate-800 p-6 flex flex-col max-h-[95vh]">
              <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-3">
                    {renderUserAvatar(selectedItem.userId)}
                    <div>
-                      <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+                      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
                         Détail {selectedItem._type === 'timesheet' ? 'Feuille d\'heures' : 'Demande de Congé'}
                       </h2>
                       <p className="text-sm text-slate-500">
@@ -273,61 +283,66 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                    </div>
                 </div>
                 <button onClick={() => setSelectedItem(null)} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors">
-                  <X size={20} />
+                  <X size={24} />
                 </button>
              </div>
 
              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {selectedItem._type === 'timesheet' ? (
-                   <div className="space-y-4">
-                      <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                         <span className="text-slate-500">Semaine du :</span>
-                         <span className="font-semibold text-slate-800 dark:text-white">{selectedItem.weekStartDate}</span>
+                   <div className="space-y-6">
+                      <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                         <span className="text-slate-500 font-medium">Période :</span>
+                         <span className="font-bold text-lg text-blue-600 dark:text-blue-400">
+                           Semaine {getWeekNumber(selectedItem.weekStartDate)} 
+                           <span className="text-slate-800 dark:text-white ml-2 font-normal text-base">
+                             (du {new Date(selectedItem.weekStartDate).toLocaleDateString()})
+                           </span>
+                         </span>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-xs text-left border-collapse min-w-[800px]">
-                           <thead className="bg-slate-100 dark:bg-slate-800 text-slate-500">
+                        <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
+                           <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase text-xs tracking-wider">
                               <tr>
-                                 <th className="p-2 rounded-tl-lg w-24">Affaire</th>
-                                 <th className="p-2 w-16">Zone</th>
-                                 <th className="p-2 w-32">Chantier</th>
+                                 <th className="p-3 rounded-tl-lg w-32">Affaire</th>
+                                 <th className="p-3 w-24">Zone</th>
+                                 <th className="p-3 w-48">Chantier</th>
                                  {modalWeekDays.map((d, i) => (
-                                    <th key={i} className="p-2 text-center border-l border-slate-200 dark:border-slate-700 min-w-[50px]">
+                                    <th key={i} className="p-3 text-center border-l border-slate-200 dark:border-slate-700 min-w-[80px]">
                                        <div className="flex flex-col">
-                                          <span>{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
-                                          <span className="font-normal">{d.getDate()}</span>
+                                          <span className="text-xs opacity-70">{d.toLocaleDateString('fr-FR', { weekday: 'long' })}</span>
+                                          <span className="text-lg font-bold text-slate-800 dark:text-white">{d.getDate()}</span>
                                        </div>
                                     </th>
                                  ))}
-                                 <th className="p-2 text-right rounded-tr-lg border-l border-slate-200 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 w-16">Total</th>
+                                 <th className="p-3 text-right rounded-tr-lg border-l border-slate-200 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 w-24">Total</th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                               {(selectedItem as Timesheet).entries.map((entry: any) => (
-                                 <tr key={entry.id}>
-                                    <td className="p-2 font-medium bg-slate-50/50 dark:bg-slate-800/20">{entry.businessId}</td>
-                                    <td className="p-2 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20">{entry.zone}</td>
-                                    <td className="p-2 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20 truncate max-w-[150px]" title={entry.site}>{entry.site}</td>
+                                 <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
+                                    <td className="p-3 font-medium bg-slate-50/50 dark:bg-slate-800/20">{entry.businessId}</td>
+                                    <td className="p-3 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20">{entry.zone}</td>
+                                    <td className="p-3 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20 truncate max-w-[200px]" title={entry.site}>{entry.site}</td>
                                     {entry.hours.map((h: number, i: number) => (
-                                       <td key={i} className="p-2 text-center border-l border-slate-100 dark:border-slate-800">
-                                          {h > 0 ? h : <span className="text-slate-300 dark:text-slate-700">-</span>}
+                                       <td key={i} className="p-3 text-center border-l border-slate-100 dark:border-slate-800 text-base">
+                                          {h > 0 ? <span className="font-medium">{h}</span> : <span className="text-slate-300 dark:text-slate-700">-</span>}
                                        </td>
                                     ))}
-                                    <td className="p-2 text-right font-bold text-blue-600 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
+                                    <td className="p-3 text-right font-bold text-blue-600 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 text-lg">
                                       {entry.hours.reduce((a: number, b: number) => a + b, 0)}
                                     </td>
                                  </tr>
                               ))}
                            </tbody>
-                           <tfoot className="bg-slate-50 dark:bg-slate-800/30 font-bold border-t border-slate-200 dark:border-slate-700">
+                           <tfoot className="bg-slate-100 dark:bg-slate-800/30 font-bold border-t-2 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white">
                               <tr>
-                                 <td colSpan={3} className="p-2 text-right">Totaux Journaliers</td>
+                                 <td colSpan={3} className="p-3 text-right text-sm uppercase">Totaux Journaliers</td>
                                  {modalWeekDays.map((_, i) => (
-                                    <td key={i} className="p-2 text-center border-l border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                                    <td key={i} className="p-3 text-center border-l border-slate-200 dark:border-slate-700">
                                        {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + (e.hours[i] || 0), 0)}
                                     </td>
                                  ))}
-                                 <td className="p-2 text-right text-blue-600 text-lg border-l border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-900/10">
+                                 <td className="p-3 text-right text-blue-600 text-xl border-l border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-900/10">
                                    {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + e.hours.reduce((a,b)=>a+b,0), 0)}
                                  </td>
                               </tr>
@@ -337,27 +352,27 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                    </div>
                 ) : (
                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                            <p className="text-xs text-slate-500 mb-1">Type</p>
-                            <p className="font-semibold capitalize">{(selectedItem as LeaveRequest).type}</p>
+                      <div className="grid grid-cols-2 gap-6">
+                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Type</p>
+                            <p className="font-bold text-lg capitalize">{(selectedItem as LeaveRequest).type}</p>
                          </div>
-                         <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                            <p className="text-xs text-slate-500 mb-1">Précision</p>
-                            <p className="font-semibold capitalize">{(selectedItem as LeaveRequest).halfDay === 'none' ? 'Journée entière' : (selectedItem as LeaveRequest).halfDay}</p>
+                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Précision</p>
+                            <p className="font-bold text-lg capitalize">{(selectedItem as LeaveRequest).halfDay === 'none' ? 'Journée entière' : (selectedItem as LeaveRequest).halfDay}</p>
                          </div>
-                         <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                            <p className="text-xs text-slate-500 mb-1">Du</p>
-                            <p className="font-semibold">{new Date((selectedItem as LeaveRequest).startDate).toLocaleDateString()}</p>
+                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Du</p>
+                            <p className="font-bold text-lg">{new Date((selectedItem as LeaveRequest).startDate).toLocaleDateString()}</p>
                          </div>
-                         <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                            <p className="text-xs text-slate-500 mb-1">Au</p>
-                            <p className="font-semibold">{new Date((selectedItem as LeaveRequest).endDate).toLocaleDateString()}</p>
+                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Au</p>
+                            <p className="font-bold text-lg">{new Date((selectedItem as LeaveRequest).endDate).toLocaleDateString()}</p>
                          </div>
                       </div>
-                      <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                         <p className="text-xs text-slate-500 mb-2">Motif / Commentaire</p>
-                         <p className="text-sm italic text-slate-700 dark:text-slate-300">
+                      <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                         <p className="text-xs text-slate-500 mb-3 uppercase tracking-wider">Motif / Commentaire</p>
+                         <p className="text-base italic text-slate-700 dark:text-slate-300">
                             {(selectedItem as LeaveRequest).reason || "Aucun motif précisé."}
                          </p>
                       </div>
@@ -373,8 +388,8 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
              </div>
 
              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-                 <div className="mr-auto flex items-center gap-2">
-                    <span className="text-sm text-slate-500">Statut Traitement :</span>
+                 <div className="mr-auto flex items-center gap-3">
+                    <span className="text-sm text-slate-500 font-medium">Action Rapide :</span>
                     <button 
                       onClick={() => {
                         selectedItem._type === 'timesheet' 
@@ -382,12 +397,12 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                           : toggleProcessedLeave(selectedItem);
                         setSelectedItem(prev => ({...prev, isProcessed: !prev.isProcessed}));
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${selectedItem.isProcessed ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors ${selectedItem.isProcessed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'}`}
                     >
-                       {selectedItem.isProcessed ? <><CheckSquare size={16}/> Traité</> : <><Square size={16}/> Non traité</>}
+                       {selectedItem.isProcessed ? <><CheckSquare size={18}/> Traité</> : <><Square size={18}/> Marquer comme traité</>}
                     </button>
                  </div>
-                 <button onClick={() => setSelectedItem(null)} className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-medium">
+                 <button onClick={() => setSelectedItem(null)} className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
                    Fermer
                  </button>
              </div>
