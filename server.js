@@ -195,12 +195,18 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS settings (
         id INT PRIMARY KEY DEFAULT 1,
         apiKey TEXT,
-        adminPassword TEXT
+        adminPassword TEXT,
+        logo LONGTEXT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    try {
+      await conn.query(`ALTER TABLE settings ADD COLUMN logo LONGTEXT`);
+      console.log("Migration: Added 'logo' column to settings.");
+    } catch (e) { /* ignore */ }
+
     await conn.query(`
-      INSERT IGNORE INTO settings (id, apiKey, adminPassword) VALUES (1, '', 'admin');
+      INSERT IGNORE INTO settings (id, apiKey, adminPassword, logo) VALUES (1, '', 'admin', '');
     `);
 
     console.log("✅ Database schema initialized.");
@@ -223,7 +229,8 @@ const getDefaultData = () => ({
   comments: [],
   notifications: [],
   apiKey: "", 
-  adminPassword: "admin" 
+  adminPassword: "admin",
+  logo: ""
 });
 
 // --- Routes ---
@@ -240,7 +247,7 @@ app.get('/api/data', async (req, res) => {
       const [notificationsRows] = await pool.query('SELECT * FROM notifications');
       const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
       
-      const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin' };
+      const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin', logo: '' };
 
       // Parse JSON fields
       const projects = projectsRows.map(p => ({
@@ -268,7 +275,8 @@ app.get('/api/data', async (req, res) => {
         comments,
         notifications,
         apiKey: settings.apiKey,
-        adminPassword: settings.adminPassword
+        adminPassword: settings.adminPassword,
+        logo: settings.logo || ''
       });
     } catch (error) {
       console.error("MySQL Read Error:", error);
@@ -285,7 +293,7 @@ app.get('/api/data', async (req, res) => {
 });
 
 app.post('/api/data', async (req, res) => {
-  const { apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword } = req.body;
+  const { apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword, logo } = req.body;
 
   if (useMySQL && pool) {
     const conn = await pool.getConnection();
@@ -293,7 +301,11 @@ app.post('/api/data', async (req, res) => {
       await conn.beginTransaction();
 
       // 1. Settings
-      await conn.query('UPDATE settings SET apiKey = ?, adminPassword = ? WHERE id = 1', [apiKey || '', adminPassword || 'admin']);
+      // Retrieve existing logo if not provided in request (to allow partial updates if needed, though here we send full state)
+      const [currentSettings] = await conn.query('SELECT logo FROM settings WHERE id = 1');
+      const logoToSave = logo !== undefined ? logo : (currentSettings[0]?.logo || '');
+
+      await conn.query('UPDATE settings SET apiKey = ?, adminPassword = ?, logo = ? WHERE id = 1', [apiKey || '', adminPassword || 'admin', logoToSave]);
 
       // 2. Apps
       await conn.query('DELETE FROM apps');
@@ -362,6 +374,10 @@ app.post('/api/data', async (req, res) => {
   } else {
     // Local File Mode
     try {
+      // Read current for fallback if logo undefined
+      const currentData = JSON.parse(await fs.readFile(DATA_FILE, 'utf8').catch(() => '{}'));
+      const logoToSave = logo !== undefined ? logo : (currentData.logo || '');
+
       const dataToSave = { 
         apps, 
         documents, 
@@ -371,7 +387,8 @@ app.post('/api/data', async (req, res) => {
         comments: comments || [],
         notifications: notifications || [],
         apiKey, 
-        adminPassword 
+        adminPassword,
+        logo: logoToSave
       };
       await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
       res.json({ success: true });

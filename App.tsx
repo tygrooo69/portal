@@ -48,6 +48,7 @@ const App: React.FC = () => {
   // Initialize with empty string, will be populated by server or localStorage
   const [apiKey, setApiKey] = useState('');
   const [adminPassword, setAdminPassword] = useState('admin');
+  const [logo, setLogo] = useState('');
 
   // Initialize Data
   useEffect(() => {
@@ -68,6 +69,7 @@ const App: React.FC = () => {
 
         if (serverData.apiKey) setApiKey(serverData.apiKey);
         if (serverData.adminPassword) setAdminPassword(serverData.adminPassword);
+        if (serverData.logo) setLogo(serverData.logo);
       } else {
         // 2. Fallback to LocalStorage (Client)
         const savedApps = localStorage.getItem('lumina_apps');
@@ -99,6 +101,9 @@ const App: React.FC = () => {
         
         const savedKey = localStorage.getItem('lumina_api_key');
         if (savedKey) setApiKey(savedKey);
+
+        const savedLogo = localStorage.getItem('lumina_logo');
+        if (savedLogo) setLogo(savedLogo);
       }
       
       // Load current user from session if available
@@ -159,10 +164,12 @@ const App: React.FC = () => {
     newComments: Comment[],
     newNotifications: Notification[],
     newKey?: string, 
-    newPwd?: string
+    newPwd?: string,
+    newLogo?: string
   ) => {
     const keyToSave = newKey !== undefined ? newKey : apiKey;
     const pwdToSave = newPwd !== undefined ? newPwd : adminPassword;
+    const logoToSave = newLogo !== undefined ? newLogo : logo;
 
     // Update UI immediately
     setApps(newApps);
@@ -175,6 +182,7 @@ const App: React.FC = () => {
 
     if (newKey !== undefined) setApiKey(newKey);
     if (newPwd !== undefined) setAdminPassword(newPwd);
+    if (newLogo !== undefined) setLogo(newLogo);
 
     // Try Save to Server
     const serverSaved = await api.saveData(
@@ -186,7 +194,8 @@ const App: React.FC = () => {
       newComments || [],
       newNotifications || [],
       keyToSave, 
-      pwdToSave
+      pwdToSave,
+      logoToSave
     );
     
     if (!serverSaved) {
@@ -198,6 +207,7 @@ const App: React.FC = () => {
         localStorage.setItem('lumina_tasks', JSON.stringify(newTasks));
         localStorage.setItem('lumina_users', JSON.stringify(newUsers));
         if (newKey !== undefined) localStorage.setItem('lumina_api_key', newKey);
+        if (newLogo !== undefined) localStorage.setItem('lumina_logo', newLogo);
       } catch (e) {
         console.warn("LocalStorage quota exceeded or error", e);
       }
@@ -205,11 +215,15 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, key, undefined);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, key, undefined, undefined);
   };
 
   const handleSaveAdminPassword = (password: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, undefined, password);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, undefined, password, undefined);
+  };
+
+  const handleSaveLogo = (newLogo: string) => {
+    persistData(apps, documents, projects, tasks, users, comments, notifications, undefined, undefined, newLogo);
   };
 
   const handleAddApp = (app: AppItem) => {
@@ -514,6 +528,8 @@ const App: React.FC = () => {
             onSavePassword={handleSaveAdminPassword}
             apiKey={apiKey}
             onSaveApiKey={handleSaveApiKey}
+            logo={logo}
+            onSaveLogo={handleSaveLogo}
             isDarkMode={isDarkMode}
             toggleTheme={toggleTheme}
           />
@@ -541,6 +557,7 @@ const App: React.FC = () => {
         onLoginClick={() => setIsLoginModalOpen(true)}
         onLogoutClick={handleLogout}
         onProfileClick={() => setIsProfileModalOpen(true)}
+        logo={logo}
       />
       
       {isLoginModalOpen && (

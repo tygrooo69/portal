@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter } from 'lucide-react';
+import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder } from 'lucide-react';
 import { Project, Task, User, Comment } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
@@ -21,7 +21,7 @@ interface ProjectManagerProps {
   onDeleteProject: (id: string) => void;
   onAddTask: (task: Task) => void;
   onUpdateTask: (task: Task) => void;
-  onUpdateTasks?: (tasks: Task[]) => void; // Optional for backward compatibility, but required for bug fix
+  onUpdateTasks?: (tasks: Task[]) => void;
   onDeleteTask: (id: string) => void;
   onAddComment: (comment: Comment) => void;
 }
@@ -81,7 +81,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       const taskToEdit = tasks.find(t => t.id === initialEditingTaskId);
       if (taskToEdit) {
         setEditingTask(taskToEdit);
-        // Ensure the project is active if a task is selected
         if (taskToEdit.projectId !== activeProjectId) {
           setActiveProjectId(taskToEdit.projectId);
         }
@@ -113,7 +112,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       members: partialProject.members || []
     };
 
-    // Auto-assign current user as member so they can see the project immediately
     if (currentUser && newProject.members && !newProject.members.includes(currentUser.id)) {
         newProject.members.push(currentUser.id);
     }
@@ -142,75 +140,54 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     setIsAddingTask(false);
   };
 
-  // --- CASCADE UPDATE LOGIC (BULK) ---
-  // Calculates all moves in memory then sends one atomic update to avoid race conditions.
   const handleTaskUpdateWithDependencies = (updatedTask: Task) => {
-    // 1. Initialize a Map with current state of all tasks
     const tasksMap = new Map<string, Task>();
     tasks.forEach(t => tasksMap.set(t.id, t));
-    
-    // 2. Update the trigger task in the map
     tasksMap.set(updatedTask.id, updatedTask);
 
-    // 3. Queue for cascade calculation
     const queue = [updatedTask];
-    const processed = new Set<string>(); // To detect circular deps and avoid infinite loops
+    const processed = new Set<string>();
 
     while(queue.length > 0) {
        const current = queue.shift()!;
        if (processed.has(current.id)) continue;
        processed.add(current.id);
 
-       // Find tasks that depend on 'current'
        const dependents = tasks.filter(t => t.dependencies?.includes(current.id));
 
        dependents.forEach(dep => {
-          // Get the latest state of the dependent task from the map (in case it was already moved)
           const depInMemory = tasksMap.get(dep.id)!;
-          
           const currentEnd = new Date(current.endDate);
           const depStart = new Date(depInMemory.startDate);
           
-          // Normalize to midnight to compare dates only
           currentEnd.setHours(0,0,0,0);
           depStart.setHours(0,0,0,0);
 
-          // Logic: Dependent Start must be >= Prerequisite End
-          // User Requirement: No gap (Start = End), so if Dep Start < Prerequisite End, we push it.
           if (depStart < currentEnd) {
              const duration = getDaysDiff(depInMemory.startDate, depInMemory.endDate);
-             
-             // New Start = Current End (Zero gap)
              const newStartDateStr = current.endDate; 
              const newEndDateStr = addDays(newStartDateStr, duration);
-
              const newDepTask = { ...depInMemory, startDate: newStartDateStr, endDate: newEndDateStr };
              
-             // Update in memory and push to queue to check its own dependents
              tasksMap.set(newDepTask.id, newDepTask);
              queue.push(newDepTask);
           }
        });
     }
 
-    // 4. Collect all tasks that have actually changed
     const changedTasks = Array.from(tasksMap.values()).filter(t => {
        const original = tasks.find(ot => ot.id === t.id);
        return JSON.stringify(original) !== JSON.stringify(t);
     });
 
-    // 5. Commit changes
     if (changedTasks.length > 0) {
       if (onUpdateTasks) {
         onUpdateTasks(changedTasks);
       } else {
-        // Fallback for safety (though handleUpdateTasks should exist)
         changedTasks.forEach(t => onUpdateTask(t));
       }
     }
   };
-
-  // --- DELETE HANDLERS WITH CONFIRMATION ---
 
   const requestDeleteProject = (id: string) => {
     const project = projects.find(p => p.id === id);
@@ -240,10 +217,10 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       if (activeProjectId === confirmState.id) {
         setActiveProjectId(null);
       }
-      setEditingProject(null); // Close modal if open
+      setEditingProject(null);
     } else {
       onDeleteTask(confirmState.id);
-      setEditingTask(null); // Close modal if open
+      setEditingTask(null);
     }
     setConfirmState({ ...confirmState, isOpen: false });
   };
@@ -280,7 +257,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     }
   };
 
-  // Helper to filter users based on project membership for Task Assignment
   const getProjectMembers = (projId: string | null) => {
     if (!projId) return [];
     const proj = projects.find(p => p.id === projId);
@@ -288,75 +264,26 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     return users.filter(u => proj.members!.includes(u.id));
   };
 
-  // Helper for initials
   const getInitials = (name: string) => {
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
   };
 
   return (
-    <div className="flex h-full bg-slate-50 dark:bg-slate-950 relative">
+    <div className="flex flex-col md:flex-row h-full bg-slate-50 dark:bg-slate-950 relative">
       <style>{`
         @media print {
           @page { size: landscape; margin: 1cm; }
-          
-          /* Reset root containers to allow full content printing */
-          html, body, #root, main {
-            height: auto !important;
-            min-height: auto !important;
-            overflow: visible !important;
-            background: white !important;
-          }
-
-          /* Hide everything by default using visibility, so we can reveal children */
-          body * {
-            visibility: hidden;
-          }
-
-          /* Show the printable area and its content */
-          #project-printable-area, #project-printable-area * {
-            visibility: visible;
-          }
-
-          /* Position the printable area at top-left */
-          #project-printable-area {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            z-index: 9999;
-            background: white !important;
-          }
-
-          /* Hide UI controls */
-          .no-print, button, input, select, ::-webkit-scrollbar {
-            display: none !important;
-          }
-
-          /* Override overflow for lists and grids to print full content */
-          .overflow-x-auto, .overflow-y-auto, .overflow-hidden {
-            overflow: visible !important;
-            height: auto !important;
-            max-height: none !important;
-          }
-          
-          /* Ensure colors are printed */
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          
-          /* Specific fixes for text colors in print */
-          .text-white { color: black !important; }
-          .text-slate-600, .text-slate-500 { color: #333 !important; }
-          .bg-blue-500 { background-color: #3b82f6 !important; }
-          .bg-green-500 { background-color: #22c55e !important; }
-          .bg-slate-400 { background-color: #94a3b8 !important; }
+          html, body, #root, main { height: auto !important; min-height: auto !important; overflow: visible !important; background: white !important; }
+          body * { visibility: hidden; }
+          #project-printable-area, #project-printable-area * { visibility: visible; }
+          #project-printable-area { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; margin: 0 !important; padding: 0 !important; z-index: 9999; background: white !important; }
+          .no-print, button, input, select, ::-webkit-scrollbar { display: none !important; }
+          .overflow-x-auto, .overflow-y-auto, .overflow-hidden { overflow: visible !important; height: auto !important; max-height: none !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
       
+      {/* Sidebar hidden on mobile */}
       <Sidebar 
         projects={filteredProjects}
         activeProjectId={activeProjectId}
@@ -368,16 +295,37 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       />
 
       <div className="flex-1 flex flex-col overflow-hidden" id="project-printable-area">
-        {/* Header */}
-        <div className="p-6 md:pr-24 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900">
+        {/* Mobile Project Selector */}
+        <div className="md:hidden p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+               <Folder size={18} className="text-slate-500" />
+               <select 
+                 value={activeProjectId || ''} 
+                 onChange={(e) => setActiveProjectId(e.target.value || null)}
+                 className="bg-transparent font-semibold text-slate-800 dark:text-white outline-none w-full truncate pr-8"
+               >
+                 <option value="">Vue d'ensemble</option>
+                 {filteredProjects.map(p => (
+                   <option key={p.id} value={p.id}>{p.name}</option>
+                 ))}
+               </select>
+            </div>
+            {!!currentUser && (
+               <button onClick={() => setIsAddingProject(true)} className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg">
+                 <Plus size={18} />
+               </button>
+            )}
+        </div>
+
+        {/* Header (Desktop mainly, adapted for mobile) */}
+        <div className="p-4 md:p-6 md:pr-24 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900">
            {!activeProjectId ? (
-             <div>
+             <div className="hidden md:block">
                <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                   <LayoutGrid className="text-slate-400" /> Vue d'ensemble
                </h1>
                <div className="flex items-center gap-2 mt-1">
                  <p className="text-slate-500 text-sm">{filteredProjects.length} projets</p>
-                 {/* User Filter Dropdown */}
                  <div className="flex items-center gap-1.5 ml-4 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                     <Filter size={12} className="text-slate-400" />
                     <select 
@@ -394,7 +342,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                </div>
              </div>
            ) : (
-             <div onClick={() => activeProject && setEditingProject(activeProject)} className="cursor-pointer group">
+             <div onClick={() => activeProject && setEditingProject(activeProject)} className="cursor-pointer group hidden md:block">
                <div className="flex items-center gap-2">
                  <h1 className="text-2xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">{activeProject?.name}</h1>
                  <span className={`px-2 py-0.5 rounded-full text-xs text-white ${activeProject?.color} no-print`}>
@@ -403,7 +351,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                </div>
                <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
                  {projectTasks.length} tâches
-                 {/* Team Avatars */}
                  {activeProject?.members && activeProject.members.length > 0 && (
                    <div className="flex -space-x-2 ml-4">
                      {activeProject.members.map(mid => {
@@ -421,31 +368,32 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
              </div>
            )}
 
-           <div className="flex items-center gap-3 no-print">
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                <button onClick={() => setViewMode('board')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'board' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><CheckSquare size={16} /> Tableau</button>
-                <button onClick={() => setViewMode('gantt')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><BarChart2 size={16} /> Gantt</button>
-                <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><List size={16} /> Liste</button>
+           {/* Controls Bar - Responsive */}
+           <div className="flex items-center gap-2 md:gap-3 no-print overflow-x-auto pb-1 md:pb-0">
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex-shrink-0">
+                <button onClick={() => setViewMode('board')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'board' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><CheckSquare size={16} /><span className="hidden sm:inline">Tableau</span></button>
+                <button onClick={() => setViewMode('gantt')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><BarChart2 size={16} /><span className="hidden sm:inline">Gantt</span></button>
+                <button onClick={() => setViewMode('list')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><List size={16} /><span className="hidden sm:inline">Liste</span></button>
               </div>
 
-              <div className="flex gap-2 border-l border-slate-200 dark:border-slate-700 pl-3">
+              <div className="flex gap-2 border-l border-slate-200 dark:border-slate-700 pl-2 md:pl-3 flex-shrink-0">
                 <button onClick={handleExportExcel} className="p-2 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded-lg"><FileSpreadsheet size={20} /></button>
-                <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Printer size={20} /></button>
+                <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg hidden sm:block"><Printer size={20} /></button>
               </div>
 
               {activeProjectId && currentUser && (
                 <button 
                   onClick={() => setIsAddingTask(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 ml-2"
+                  className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 ml-auto md:ml-2 flex-shrink-0"
                 >
-                  <Plus size={18} /> Nouvelle Tâche
+                  <Plus size={18} /> <span className="hidden sm:inline">Tâche</span>
                 </button>
               )}
            </div>
         </div>
 
-        {/* Views */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Views Container */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
           {viewMode === 'board' && (
              <BoardView 
                tasks={projectTasks} 
@@ -486,8 +434,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       </div>
 
       {/* Modals */}
-      
-      {/* Confirm Modal */}
       <ConfirmModal 
         isOpen={confirmState.isOpen}
         title={confirmState.title}
@@ -496,7 +442,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         onClose={() => setConfirmState({...confirmState, isOpen: false})}
       />
       
-      {/* Creation Task Modal */}
       {isAddingTask && (
         <TaskModal 
            task={null}
@@ -509,7 +454,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         />
       )}
       
-      {/* Editing Task Modal */}
       {editingTask && (
         <TaskModal 
           task={editingTask}
@@ -524,7 +468,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         />
       )}
 
-      {/* Creation Project Modal */}
       {isAddingProject && (
         <ProjectModal
           project={null}
@@ -535,7 +478,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         />
       )}
 
-      {/* Editing Project Modal */}
       {editingProject && (
         <ProjectModal 
           project={editingProject}

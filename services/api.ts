@@ -10,6 +10,7 @@ interface StorageData {
   notifications?: Notification[];
   apiKey?: string;
   adminPassword?: string;
+  logo?: string;
 }
 
 export const api = {
@@ -36,7 +37,8 @@ export const api = {
     comments: Comment[],
     notifications: Notification[],
     apiKey?: string, 
-    adminPassword?: string
+    adminPassword?: string,
+    logo?: string
   ): Promise<boolean> {
     try {
       const response = await fetch('/api/data', {
@@ -44,7 +46,7 @@ export const api = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword }),
+        body: JSON.stringify({ apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword, logo }),
       });
       return response.ok;
     } catch (error) {

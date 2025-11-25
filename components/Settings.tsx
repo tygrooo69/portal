@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Moon, Sun, Key, Lock, Unlock, ChevronRight, AppWindow, FileText, ShieldCheck, Users } from 'lucide-react';
+import { Moon, Sun, Key, Lock, Unlock, ChevronRight, AppWindow, FileText, ShieldCheck, Users, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface SettingsProps {
@@ -8,6 +8,8 @@ interface SettingsProps {
   onSavePassword: (password: string) => void;
   apiKey: string;
   onSaveApiKey: (key: string) => void;
+  logo: string;
+  onSaveLogo: (logo: string) => void;
   isDarkMode: boolean;
   toggleTheme: () => void;
 }
@@ -18,6 +20,8 @@ export const Settings: React.FC<SettingsProps> = ({
   onSavePassword, 
   apiKey, 
   onSaveApiKey,
+  logo,
+  onSaveLogo,
   isDarkMode,
   toggleTheme
 }) => {
@@ -53,6 +57,21 @@ export const Settings: React.FC<SettingsProps> = ({
       setNewPassword('');
       setShowChangePwd(false);
       alert('Mot de passe administrateur mis à jour');
+    }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          onSaveLogo(reader.result);
+        }
+      };
+      
+      reader.readAsDataURL(file);
     }
   };
 
@@ -93,7 +112,7 @@ export const Settings: React.FC<SettingsProps> = ({
   }
 
   return (
-    <div className="p-6 md:p-8 h-full overflow-y-auto max-w-3xl mx-auto">
+    <div className="p-6 md:p-8 h-full overflow-y-auto max-w-3xl mx-auto custom-scrollbar">
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg">
            <Unlock size={24} />
@@ -168,13 +187,53 @@ export const Settings: React.FC<SettingsProps> = ({
                 {isDarkMode ? <Moon size={20} /> : <Sun size={20} />}
               </div>
               <div>
-                <p className="font-medium text-slate-800 dark:text-white">Apparence</p>
-                <p className="text-sm text-slate-500">Mode {isDarkMode ? 'Sombre' : 'Clair'}</p>
+                <p className="font-medium text-slate-800 dark:text-white">Mode Sombre</p>
+                <p className="text-sm text-slate-500">Basculer entre thème clair et sombre</p>
               </div>
             </div>
             <button onClick={toggleTheme} className="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200 dark:bg-slate-700 transition-colors">
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
+          </div>
+
+          {/* Logo Customization */}
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-3">
+                 <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                   <ImageIcon size={20} />
+                 </div>
+                 <div>
+                   <p className="font-medium text-slate-800 dark:text-white">Logo de l'application</p>
+                   <p className="text-sm text-slate-500">Personnalisez l'identité visuelle (Haut de la barre latérale)</p>
+                 </div>
+               </div>
+               {logo && (
+                 <button onClick={() => onSaveLogo('')} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 border border-red-200 dark:border-red-900/30 px-2 py-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">
+                   <Trash2 size={12} /> Supprimer
+                 </button>
+               )}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center bg-white dark:bg-slate-800 overflow-hidden flex-shrink-0">
+                 {logo ? (
+                   <img src={logo} alt="Logo Preview" className="w-full h-full object-contain" />
+                 ) : (
+                   <span className="text-2xl font-bold text-slate-300">L</span>
+                 )}
+              </div>
+              <div className="flex-1 w-full">
+                 <label className="cursor-pointer flex flex-col items-center justify-center w-full px-4 py-6 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 border-dashed rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group">
+                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload size={24} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors" />
+                      <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Cliquez pour importer</span></p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG ou SVG (Max 2MB)</p>
+                   </div>
+                   <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                 </label>
+              </div>
+            </div>
           </div>
 
           {/* API Key */}
@@ -239,7 +298,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
         
         <div className="text-center text-xs text-slate-400 pt-4">
-          Lumina Portal v1.6.0 • Build 2024
+          Lumina Portal v1.7.0 • Build 2024
         </div>
       </div>
     </div>
