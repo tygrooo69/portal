@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installer les dépendances
-RUN npm install && npm audit fix
+RUN npm install
 
 # Copier le reste du code source
 COPY . .
@@ -55,4 +55,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
 # Démarrer le serveur
+
 CMD ["node", "server.js"]
