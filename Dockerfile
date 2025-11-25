@@ -9,7 +9,13 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installer les dépendances
-RUN npm install
+# RUN npm install && npm audit fix --force
+
+# Installer les dépendances
+RUN npm ci --only=production=true
+
+# Corriger les vulnérabilités (ignorer les erreurs car non-bloquantes en dev)
+RUN npm audit fix --force || true
 
 # Copier le reste du code source
 COPY . .
@@ -57,3 +63,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Démarrer le serveur
 
 CMD ["node", "server.js"]
+
