@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare } from 'lucide-react';
-import { AppItem, DocumentItem, Project, Task } from '../types';
+import { AppItem, DocumentItem, Project, Task, User } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
 interface DashboardProps {
@@ -8,8 +8,10 @@ interface DashboardProps {
   documents: DocumentItem[];
   projects?: Project[];
   tasks?: Task[];
+  currentUser: User | null;
   onProjectClick?: (projectId: string) => void;
   onTaskClick?: (taskId: string, projectId: string) => void;
+  onNavigateToProjects?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
@@ -17,8 +19,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   documents, 
   projects = [], 
   tasks = [], 
+  currentUser,
   onProjectClick,
-  onTaskClick 
+  onTaskClick,
+  onNavigateToProjects
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,10 +76,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
     (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()))
   ) : [];
 
+  // Filter Projects for Widget based on User
+  // If logged in: show only projects where user is a member
+  // If not logged in: show all (public view)
+  const widgetProjects = currentUser 
+    ? projects.filter(p => p.members && p.members.includes(currentUser.id))
+    : projects;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       if (filteredApps.length > 0) handleAppClick(filteredApps[0]);
-      // Logic could be expanded to select first project/task
     }
   };
 
@@ -122,7 +132,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
             Portail Lumina
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Votre espace de travail centralisé.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            {currentUser ? `Bonjour ${currentUser.name}, votre espace de travail centralisé.` : 'Votre espace de travail centralisé.'}
+          </p>
         </div>
         <div className="flex items-center space-x-4">
            <div className="hidden md:block text-right">
@@ -332,16 +344,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Project Status Summary Widget */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-0 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-               <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
+             <div 
+               onClick={onNavigateToProjects}
+               className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+               title="Voir tous les projets"
+             >
+               <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 transition-colors">
                  <Briefcase size={18} />
                </div>
-               <h3 className="font-semibold text-slate-800 dark:text-white">Suivi des Projets</h3>
+               <div className="flex-1">
+                 <h3 className="font-semibold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">Suivi des Projets</h3>
+                 {currentUser && <p className="text-xs text-slate-500">Mes projets assignés</p>}
+               </div>
+               <CornerDownLeft size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
              </div>
              
-             {projects.length === 0 ? (
+             {widgetProjects.length === 0 ? (
                <div className="p-6 text-center text-sm text-slate-400">
-                 Aucun projet actif.
+                 {currentUser ? 'Aucun projet assigné.' : 'Aucun projet actif.'}
                </div>
              ) : (
                <div className="overflow-x-auto">
@@ -354,7 +374,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                     {projects.slice(0, 5).map(proj => {
+                     {widgetProjects.slice(0, 5).map(proj => {
                        const daysRemaining = getDaysRemaining(proj.endDate);
                        return (
                         <tr 
@@ -397,9 +417,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                      })}
                    </tbody>
                  </table>
-                 {projects.length > 5 && (
+                 {widgetProjects.length > 5 && (
                     <div className="px-5 py-3 text-center border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-xs text-slate-400">Et {projects.length - 5} autres...</span>
+                      <span className="text-xs text-slate-400">Et {widgetProjects.length - 5} autres...</span>
                     </div>
                  )}
                </div>

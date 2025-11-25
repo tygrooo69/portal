@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus } from 'lucide-react';
-import { Project, Task } from '../../types';
+import { Project, Task, User } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
 import { BoardView } from './BoardView';
@@ -11,6 +11,8 @@ import { downloadCsv, getDaysDiff } from './utils';
 interface ProjectManagerProps {
   projects: Project[];
   tasks: Task[];
+  users: User[];
+  currentUser: User | null;
   initialActiveProjectId?: string | null;
   initialEditingTaskId?: string | null;
   onAddProject: (project: Project) => void;
@@ -24,6 +26,8 @@ interface ProjectManagerProps {
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
   projects,
   tasks,
+  users,
+  currentUser,
   initialActiveProjectId = null,
   initialEditingTaskId = null,
   onAddProject,
@@ -77,7 +81,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       priority: partialProject.priority || 'medium',
       status: partialProject.status || 'active',
       startDate: partialProject.startDate || new Date().toISOString().split('T')[0],
-      endDate: partialProject.endDate || new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0]
+      endDate: partialProject.endDate || new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
+      members: partialProject.members || []
     };
     onAddProject(newProject);
     setActiveProjectId(newProject.id);
@@ -94,7 +99,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       status: partialTask.status || 'todo',
       priority: partialTask.priority || 'medium',
       startDate: partialTask.startDate!,
-      endDate: partialTask.endDate!
+      endDate: partialTask.endDate!,
+      assignee: partialTask.assignee
     };
     onAddTask(task);
     setIsAddingTask(false);
@@ -104,26 +110,28 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     let csvContent = "\uFEFF"; 
     if (activeProjectId) {
        if (projectTasks.length === 0) return;
-       csvContent += "Titre;Description;Statut;Priorité;Date Début;Date Fin;Durée (jours)\n";
+       csvContent += "Titre;Description;Statut;Priorité;Date Début;Date Fin;Assigné à;Durée (jours)\n";
        projectTasks.forEach(task => {
         const duration = getDaysDiff(task.startDate, task.endDate);
         const safeTitle = task.title.replace(/"/g, '""');
         const safeDesc = (task.description || '').replace(/"/g, '""').replace(/\n/g, ' ');
-        const row = [`"${safeTitle}"`, `"${safeDesc}"`, task.status, task.priority, task.startDate, task.endDate, duration];
+        const assigneeName = users.find(u => u.id === task.assignee)?.name || '';
+        const row = [`"${safeTitle}"`, `"${safeDesc}"`, task.status, task.priority, task.startDate, task.endDate, `"${assigneeName}"`, duration];
         csvContent += row.join(";") + "\n";
       });
       const filename = activeProject ? `${activeProject.name}_tasks.csv` : 'tasks.csv';
       downloadCsv(csvContent, filename);
     } else {
       if (projects.length === 0) return;
-      csvContent += "Nom Projet;Description;Statut;Priorité;Date Début;Date Fin;Durée (jours)\n";
+      csvContent += "Nom Projet;Description;Statut;Priorité;Date Début;Date Fin;Membres;Durée (jours)\n";
       projects.forEach(proj => {
         const start = proj.startDate || new Date().toISOString().split('T')[0];
         const end = proj.endDate || new Date().toISOString().split('T')[0];
         const duration = getDaysDiff(start, end);
         const safeName = proj.name.replace(/"/g, '""');
         const safeDesc = (proj.description || '').replace(/"/g, '""').replace(/\n/g, ' ');
-        const row = [`"${safeName}"`, `"${safeDesc}"`, proj.status, proj.priority, start, end, duration];
+        const membersNames = proj.members?.map(mid => users.find(u => u.id === mid)?.name).join(', ') || '';
+        const row = [`"${safeName}"`, `"${safeDesc}"`, proj.status, proj.priority, start, end, `"${membersNames}"`, duration];
         csvContent += row.join(";") + "\n";
       });
       downloadCsv(csvContent, 'projets_overview.csv');
@@ -146,6 +154,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       <Sidebar 
         projects={projects}
         activeProjectId={activeProjectId}
+        canCreate={!!currentUser}
         onSelectProject={setActiveProjectId}
         onAddProjectClick={() => setIsAddingProject(true)}
         onDeleteProject={onDeleteProject}
@@ -172,6 +181,20 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                </div>
                <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
                  {projectTasks.length} tâches
+                 {/* Team Avatars */}
+                 {activeProject?.members && activeProject.members.length > 0 && (
+                   <div className="flex -space-x-2 ml-4">
+                     {activeProject.members.map(mid => {
+                       const user = users.find(u => u.id === mid);
+                       if (!user) return null;
+                       return (
+                         <div key={user.id} className={`w-6 h-6 rounded-full ${user.color} border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
+                           {user.name.charAt(0)}
+                         </div>
+                       );
+                     })}
+                   </div>
+                 )}
                </p>
              </div>
            )}
@@ -188,7 +211,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                 <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Printer size={20} /></button>
               </div>
 
-              {activeProjectId && (
+              {activeProjectId && currentUser && (
                 <button 
                   onClick={() => setIsAddingTask(true)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 ml-2"
@@ -205,6 +228,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
              <BoardView 
                tasks={projectTasks} 
                projects={projects}
+               users={users}
                activeProjectId={activeProjectId}
                onUpdateTask={onUpdateTask}
                onDeleteTask={onDeleteTask}
@@ -229,6 +253,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
             <ListView 
                items={activeProjectId ? projectTasks : projects}
                isProjects={!activeProjectId}
+               users={users}
                onDelete={activeProjectId ? onDeleteTask : onDeleteProject}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
                onUpdateTaskStatus={(t, s) => onUpdateTask({...t, status: s})}
@@ -244,6 +269,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         <TaskModal 
            task={null}
            isNew={true}
+           users={users}
            onSave={handleSaveNewTask} 
            onClose={() => setIsAddingTask(false)} 
         />
@@ -253,6 +279,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       {editingTask && (
         <TaskModal 
           task={editingTask}
+          users={users}
           onSave={(updated) => { onUpdateTask(updated as Task); }}
           onDelete={onDeleteTask}
           onClose={() => { setEditingTask(null); }}
@@ -264,6 +291,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         <ProjectModal
           project={null}
           isNew={true}
+          users={users}
           onSave={handleSaveNewProject}
           onClose={() => setIsAddingProject(false)}
         />
@@ -273,6 +301,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       {editingProject && (
         <ProjectModal 
           project={editingProject}
+          users={users}
           onSave={(updated) => onUpdateProject(updated as Project)}
           onDelete={(id) => { 
             onDeleteProject(id); 

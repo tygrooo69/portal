@@ -1,11 +1,11 @@
-
 import React from 'react';
-import { Trash2, Clock } from 'lucide-react';
-import { Project, Task } from '../../types';
+import { Trash2, Clock, User } from 'lucide-react';
+import { Project, Task, User as UserType } from '../../types';
 
 interface BoardViewProps {
   tasks: Task[];
   projects?: Project[];
+  users: UserType[];
   activeProjectId: string | null;
   onUpdateTask: (task: Task) => void;
   onDeleteTask: (id: string) => void;
@@ -18,6 +18,7 @@ interface BoardViewProps {
 export const BoardView: React.FC<BoardViewProps> = ({
   tasks,
   projects = [],
+  users,
   activeProjectId,
   onUpdateTask,
   onDeleteTask,
@@ -54,6 +55,19 @@ export const BoardView: React.FC<BoardViewProps> = ({
                       </span>
                       {proj.endDate && <span>Fin: {new Date(proj.endDate).toLocaleDateString()}</span>}
                    </div>
+                   {proj.members && proj.members.length > 0 && (
+                     <div className="flex -space-x-1 mt-3">
+                       {proj.members.slice(0, 4).map(mid => {
+                         const user = users.find(u => u.id === mid);
+                         return user ? (
+                           <div key={user.id} className={`w-5 h-5 rounded-full ${user.color} border border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
+                             {user.name.charAt(0)}
+                           </div>
+                         ) : null;
+                       })}
+                       {proj.members.length > 4 && <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[8px] text-slate-600 border border-white">+{proj.members.length - 4}</div>}
+                     </div>
+                   )}
                    <div className="grid grid-cols-2 gap-2 mt-3 no-print">
                       <button onClick={(e) => { e.stopPropagation(); moveProject(proj, 'on-hold'); }} className="py-1.5 bg-orange-50 text-orange-600 rounded text-xs font-medium hover:bg-orange-100">Pause</button>
                       <button onClick={(e) => { e.stopPropagation(); moveProject(proj, 'completed'); }} className="py-1.5 bg-green-50 text-green-600 rounded text-xs font-medium hover:bg-green-100">Terminer &rarr;</button>
@@ -112,6 +126,55 @@ export const BoardView: React.FC<BoardViewProps> = ({
     onUpdateTask({ ...task, status: newStatus });
   };
 
+  const renderTaskCard = (task: Task) => {
+    const assignee = users.find(u => u.id === task.assignee);
+
+    return (
+      <div 
+        key={task.id} 
+        className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 cursor-grab active:cursor-grabbing group hover:border-blue-400 transition-colors"
+        onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
+      >
+          <div className="flex justify-between items-start mb-2">
+            <p className={`font-medium text-sm ${task.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-white'}`}>{task.title}</p>
+            <button onClick={() => onDeleteTask(task.id)} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 no-print"><Trash2 size={14}/></button>
+          </div>
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className={`px-1.5 py-0.5 rounded border ${task.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 border-slate-100 dark:bg-slate-700 dark:border-slate-600'}`}>
+              {task.priority === 'high' ? 'Urgent' : task.priority === 'medium' ? 'Normal' : 'Bas'}
+            </span>
+            <div className="flex items-center gap-1">
+              <Clock size={12} />
+              {new Date(task.endDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between mt-3">
+             {assignee ? (
+               <div className="flex items-center gap-1.5" title={`Assigné à ${assignee.name}`}>
+                  <div className={`w-5 h-5 rounded-full ${assignee.color} flex items-center justify-center text-[9px] text-white font-bold`}>
+                     {assignee.name.charAt(0)}
+                  </div>
+                  <span className="text-[10px] text-slate-500">{assignee.name.split(' ')[0]}</span>
+               </div>
+             ) : (
+                <span className="text-[10px] text-slate-400 flex items-center gap-1"><User size={10} /> Non assigné</span>
+             )}
+          </div>
+
+          {task.status !== 'done' ? (
+             <button onClick={() => moveTask(task, task.status === 'todo' ? 'in-progress' : 'done')} className="mt-2 w-full py-1.5 bg-slate-50 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400 rounded text-xs font-medium hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 no-print">
+               {task.status === 'todo' ? 'Démarrer ->' : 'Terminer ->'}
+             </button>
+          ) : (
+             <button onClick={() => moveTask(task, 'in-progress')} className="mt-2 w-full text-xs text-slate-400 hover:text-blue-500 text-center py-1 no-print">
+               Réouvrir
+             </button>
+          )}
+      </div>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-[500px]">
       
@@ -122,30 +185,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           <span className="ml-auto text-xs bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full">{tasks.filter(t => t.status === 'todo').length}</span>
         </h3>
         <div className="space-y-3">
-          {tasks.filter(t => t.status === 'todo').map(task => (
-            <div 
-              key={task.id} 
-              className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 cursor-grab active:cursor-grabbing group hover:border-blue-400 transition-colors"
-              onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-            >
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium text-slate-800 dark:text-white text-sm">{task.title}</p>
-                  <button onClick={() => onDeleteTask(task.id)} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 no-print"><Trash2 size={14}/></button>
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className={`px-1.5 py-0.5 rounded border ${task.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 border-slate-100 dark:bg-slate-700 dark:border-slate-600'}`}>
-                    {task.priority === 'high' ? 'Urgent' : task.priority === 'medium' ? 'Normal' : 'Bas'}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Clock size={12} />
-                    {new Date(task.endDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
-                  </div>
-                </div>
-                <button onClick={() => moveTask(task, 'in-progress')} className="mt-3 w-full py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 no-print">
-                  Démarrer &rarr;
-                </button>
-            </div>
-          ))}
+          {tasks.filter(t => t.status === 'todo').map(task => renderTaskCard(task))}
         </div>
       </div>
 
@@ -156,31 +196,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           <span className="ml-auto text-xs bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded-full">{tasks.filter(t => t.status === 'in-progress').length}</span>
         </h3>
         <div className="space-y-3">
-          {tasks.filter(t => t.status === 'in-progress').map(task => (
-            <div 
-              key={task.id} 
-              className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm border border-blue-100 dark:border-blue-900/30 cursor-grab"
-              onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-            >
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium text-slate-800 dark:text-white text-sm">{task.title}</p>
-                  <button onClick={() => onDeleteTask(task.id)} className="text-slate-400 hover:text-red-500 no-print"><Trash2 size={14}/></button>
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <div className="flex items-center gap-1 text-blue-600">
-                    <Clock size={12} /> En cours
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-3 no-print">
-                  <button onClick={() => moveTask(task, 'todo')} className="py-1.5 bg-slate-50 text-slate-600 rounded text-xs font-medium hover:bg-slate-100">
-                    &larr; Retour
-                  </button>
-                  <button onClick={() => moveTask(task, 'done')} className="py-1.5 bg-green-50 text-green-600 rounded text-xs font-medium hover:bg-green-100">
-                    Terminer &rarr;
-                  </button>
-                </div>
-            </div>
-          ))}
+          {tasks.filter(t => t.status === 'in-progress').map(task => renderTaskCard(task))}
         </div>
       </div>
 
@@ -191,24 +207,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           <span className="ml-auto text-xs bg-green-100 dark:bg-green-900 px-2 py-0.5 rounded-full">{tasks.filter(t => t.status === 'done').length}</span>
         </h3>
         <div className="space-y-3">
-          {tasks.filter(t => t.status === 'done').map(task => (
-            <div 
-              key={task.id} 
-              className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm border border-green-100 dark:border-green-900/30 opacity-75 hover:opacity-100 transition-opacity"
-              onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-            >
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium text-slate-800 dark:text-white text-sm line-through text-slate-400">{task.title}</p>
-                  <button onClick={() => onDeleteTask(task.id)} className="text-slate-400 hover:text-red-500 no-print"><Trash2 size={14}/></button>
-                </div>
-                <div className="flex items-center justify-end text-xs text-green-600">
-                  <div className="flex items-center gap-1">Fait</div>
-                </div>
-                <button onClick={() => moveTask(task, 'in-progress')} className="mt-2 w-full text-xs text-slate-400 hover:text-blue-500 text-center py-1 no-print">
-                  Réouvrir
-                </button>
-            </div>
-          ))}
+          {tasks.filter(t => t.status === 'done').map(task => renderTaskCard(task))}
         </div>
       </div>
 

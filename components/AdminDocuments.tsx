@@ -129,7 +129,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files) as File[];
     if (files.length > 0) {
       processBatch(files);
     }
@@ -137,7 +137,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
+      const files = Array.from(e.target.files) as File[];
       processBatch(files);
       e.target.value = ''; // Reset input
     }

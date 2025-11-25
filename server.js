@@ -54,6 +54,39 @@ async function initDB() {
   try {
     console.log("Checking database schema...");
     
+    // Users Table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255),
+        email VARCHAR(255),
+        password VARCHAR(255),
+        avatar TEXT,
+        color VARCHAR(50)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Add password column if it doesn't exist (Migration)
+    try {
+      await conn.query(`ALTER TABLE users ADD COLUMN password VARCHAR(255)`);
+      console.log("Migration: Added 'password' column to users.");
+    } catch (e: any) {
+       if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
+    }
+
+    // Seed Users if empty
+    const [existingUsers] = await conn.query('SELECT COUNT(*) as count FROM users');
+    if ((existingUsers as any)[0].count === 0) {
+      console.log("Seeding default users...");
+      await conn.query(`
+        INSERT INTO users (id, name, email, password, color) VALUES 
+        ('u1', 'Alice Dubois', 'alice@lumina.com', '1234', 'bg-pink-500'),
+        ('u2', 'Marc Martin', 'marc@lumina.com', '1234', 'bg-blue-500'),
+        ('u3', 'Sophie Bernard', 'sophie@lumina.com', '1234', 'bg-purple-500'),
+        ('u4', 'Thomas Petit', 'thomas@lumina.com', '1234', 'bg-green-500');
+      `);
+    }
+
     // Projects Table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS projects (
@@ -65,9 +98,18 @@ async function initDB() {
         priority VARCHAR(50),
         startDate VARCHAR(50),
         endDate VARCHAR(50),
-        createdAt VARCHAR(50)
+        createdAt VARCHAR(50),
+        members TEXT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Add members column if it doesn't exist (Migration)
+    try {
+      await conn.query(`ALTER TABLE projects ADD COLUMN members TEXT`);
+      console.log("Migration: Added 'members' column to projects.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
+    }
 
     // Tasks Table
     await conn.query(`
@@ -80,9 +122,18 @@ async function initDB() {
         priority VARCHAR(50),
         startDate VARCHAR(50),
         endDate VARCHAR(50),
+        assignee VARCHAR(255),
         INDEX idx_project (projectId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Add assignee column if it doesn't exist (Migration)
+    try {
+      await conn.query(`ALTER TABLE tasks ADD COLUMN assignee VARCHAR(255)`);
+      console.log("Migration: Added 'assignee' column to tasks.");
+    } catch (e: any) {
+       if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
+    }
 
     // Apps Table
     await conn.query(`
@@ -97,7 +148,7 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Documents Table (Content is LONGTEXT for base64/large text)
+    // Documents Table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS documents (
         id VARCHAR(255) PRIMARY KEY,
@@ -108,7 +159,7 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Settings Table (Single row)
+    // Settings Table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS settings (
         id INT PRIMARY KEY DEFAULT 1,
@@ -129,7 +180,7 @@ async function initDB() {
 }
 
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' })); // Increased limit for docs
+app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
@@ -138,6 +189,7 @@ const getDefaultData = () => ({
   documents: [], 
   projects: [],
   tasks: [],
+  users: [],
   apiKey: "", 
   adminPassword: "admin" 
 });
@@ -147,19 +199,27 @@ const getDefaultData = () => ({
 app.get('/api/data', async (req, res) => {
   if (useMySQL && pool) {
     try {
-      const [projects] = await pool.query('SELECT * FROM projects');
+      const [projectsRows] = await pool.query('SELECT * FROM projects');
       const [tasks] = await pool.query('SELECT * FROM tasks');
       const [apps] = await pool.query('SELECT * FROM apps');
       const [documents] = await pool.query('SELECT * FROM documents');
+      const [users] = await pool.query('SELECT * FROM users');
       const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
       
-      const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin' };
+      const settings = (settingsRows as any)[0] || { apiKey: '', adminPassword: 'admin' };
+
+      // Parse 'members' JSON string back to array for frontend
+      const projects = (projectsRows as any[]).map(p => ({
+        ...p,
+        members: p.members ? JSON.parse(p.members) : []
+      }));
 
       res.json({
         apps,
         documents,
         projects,
         tasks,
+        users,
         apiKey: settings.apiKey,
         adminPassword: settings.adminPassword
       });
@@ -178,7 +238,7 @@ app.get('/api/data', async (req, res) => {
 });
 
 app.post('/api/data', async (req, res) => {
-  const { apps, documents, projects, tasks, apiKey, adminPassword } = req.body;
+  const { apps, documents, projects, tasks, users, apiKey, adminPassword } = req.body;
 
   if (useMySQL && pool) {
     const conn = await pool.getConnection();
@@ -189,35 +249,43 @@ app.post('/api/data', async (req, res) => {
       await conn.query('UPDATE settings SET apiKey = ?, adminPassword = ? WHERE id = 1', [apiKey || '', adminPassword || 'admin']);
 
       // 2. Apps
-      await conn.query('DELETE FROM apps'); // Clear table
+      await conn.query('DELETE FROM apps');
       if (apps && apps.length > 0) {
-        const appValues = apps.map(a => [a.id, a.name, a.description, a.icon, a.color, a.category, a.url]);
+        const appValues = apps.map((a: any) => [a.id, a.name, a.description, a.icon, a.color, a.category, a.url]);
         await conn.query('INSERT INTO apps (id, name, description, icon, color, category, url) VALUES ?', [appValues]);
       }
 
       // 3. Projects
       await conn.query('DELETE FROM projects');
       if (projects && projects.length > 0) {
-        const projValues = projects.map(p => [
-          p.id, p.name, p.description || '', p.color, p.status || 'active', p.priority || 'medium', p.startDate, p.endDate, p.createdAt
+        const projValues = projects.map((p: any) => [
+          p.id, p.name, p.description || '', p.color, p.status || 'active', p.priority || 'medium', p.startDate, p.endDate, p.createdAt, 
+          JSON.stringify(p.members || []) // Store array as JSON string
         ]);
-        await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt) VALUES ?', [projValues]);
+        await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members) VALUES ?', [projValues]);
       }
 
       // 4. Tasks
       await conn.query('DELETE FROM tasks');
       if (tasks && tasks.length > 0) {
-        const taskValues = tasks.map(t => [
-          t.id, t.projectId, t.title, t.description || '', t.status, t.priority, t.startDate, t.endDate
+        const taskValues = tasks.map((t: any) => [
+          t.id, t.projectId, t.title, t.description || '', t.status, t.priority, t.startDate, t.endDate, t.assignee || null
         ]);
-        await conn.query('INSERT INTO tasks (id, projectId, title, description, status, priority, startDate, endDate) VALUES ?', [taskValues]);
+        await conn.query('INSERT INTO tasks (id, projectId, title, description, status, priority, startDate, endDate, assignee) VALUES ?', [taskValues]);
       }
 
       // 5. Documents
       await conn.query('DELETE FROM documents');
       if (documents && documents.length > 0) {
-        const docValues = documents.map(d => [d.id, d.name, d.type, d.uploadDate, d.content]);
+        const docValues = documents.map((d: any) => [d.id, d.name, d.type, d.uploadDate, d.content]);
         await conn.query('INSERT INTO documents (id, name, type, uploadDate, content) VALUES ?', [docValues]);
+      }
+      
+      // 6. Users
+      await conn.query('DELETE FROM users');
+      if (users && users.length > 0) {
+        const userValues = users.map((u: any) => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color]);
+        await conn.query('INSERT INTO users (id, name, email, password, avatar, color) VALUES ?', [userValues]);
       }
 
       await conn.commit();
@@ -232,7 +300,15 @@ app.post('/api/data', async (req, res) => {
   } else {
     // Local File Mode
     try {
-      const dataToSave = { apps, documents, projects, tasks, apiKey, adminPassword };
+      const dataToSave = { 
+        apps, 
+        documents, 
+        projects, 
+        tasks, 
+        users: users || [],
+        apiKey, 
+        adminPassword 
+      };
       await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
       res.json({ success: true });
     } catch (error) {

@@ -1,16 +1,17 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
-import { Project, Task } from '../../types';
+import { Project, Task, User } from '../../types';
 
 interface ListViewProps {
   items: (Project | Task)[];
   isProjects: boolean;
+  users: User[];
   onDelete: (id: string) => void;
   onEdit: (item: any) => void;
   onUpdateTaskStatus?: (task: Task, status: 'todo' | 'in-progress' | 'done') => void;
 }
 
-export const ListView: React.FC<ListViewProps> = ({ items, isProjects, onDelete, onEdit, onUpdateTaskStatus }) => {
+export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, onDelete, onEdit, onUpdateTaskStatus }) => {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
       <table className="w-full text-sm text-left">
@@ -18,7 +19,7 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, onDelete,
           <tr>
             <th className="px-6 py-4">Statut</th>
             <th className="px-6 py-4">{isProjects ? 'Projet' : 'Tâche'}</th>
-            <th className="px-6 py-4">Description</th>
+            <th className="px-6 py-4">{isProjects ? 'Équipe' : 'Assigné à'}</th>
             <th className="px-6 py-4">Priorité</th>
             <th className="px-6 py-4">Début</th>
             <th className="px-6 py-4">Fin</th>
@@ -29,7 +30,6 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, onDelete,
           {items.map(item => {
              const status = (item as any).status;
              const isDone = status === 'done' || status === 'completed';
-             const description = (item as any).description;
              
              // Badge de statut pour les tâches
              const getTaskStatusBadge = (s: string) => {
@@ -47,6 +47,40 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, onDelete,
                   case 'on-hold': return <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800">En pause</span>;
                   default: return <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800">Actif</span>;
                 }
+             };
+
+             // Team / Assignee Renderer
+             const renderUsers = () => {
+               if (isProjects) {
+                 const members = (item as Project).members || [];
+                 if (members.length === 0) return <span className="text-slate-400">-</span>;
+                 return (
+                   <div className="flex -space-x-1.5">
+                      {members.slice(0, 3).map(mid => {
+                        const u = users.find(user => user.id === mid);
+                        if(!u) return null;
+                        return (
+                          <div key={u.id} className={`w-6 h-6 rounded-full ${u.color} border border-white dark:border-slate-800 flex items-center justify-center text-[9px] text-white font-bold`} title={u.name}>
+                            {u.name.charAt(0)}
+                          </div>
+                        );
+                      })}
+                      {members.length > 3 && <div className="w-6 h-6 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[9px] text-slate-600 font-medium">+{members.length - 3}</div>}
+                   </div>
+                 );
+               } else {
+                 const assigneeId = (item as Task).assignee;
+                 const assignee = users.find(u => u.id === assigneeId);
+                 if (!assignee) return <span className="text-slate-400">-</span>;
+                 return (
+                   <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-full ${assignee.color} flex items-center justify-center text-[10px] text-white font-bold`}>
+                        {assignee.name.charAt(0)}
+                      </div>
+                      <span className="text-slate-700 dark:text-slate-300">{assignee.name}</span>
+                   </div>
+                 );
+               }
              };
 
              return (
@@ -67,19 +101,23 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, onDelete,
                   {isProjects ? (
                      <div className="flex items-center gap-2">
                         <div className={`w-3 h-3 rounded-full ${(item as Project).color}`} />
-                        <span className="font-semibold text-slate-800 dark:text-white">{(item as Project).name}</span>
+                        <div>
+                          <span className="font-semibold text-slate-800 dark:text-white block">{(item as Project).name}</span>
+                          <span className="text-xs text-slate-400 truncate max-w-[150px] block">{(item as any).description}</span>
+                        </div>
                      </div>
                   ) : (
-                     <span className={`font-medium ${isDone ? 'line-through text-slate-500' : 'text-slate-800 dark:text-white'}`}>
-                       {(item as Task).title}
-                     </span>
+                     <div>
+                       <span className={`font-medium ${isDone ? 'line-through text-slate-500' : 'text-slate-800 dark:text-white'} block`}>
+                         {(item as Task).title}
+                       </span>
+                       <span className="text-xs text-slate-400 truncate max-w-[150px] block">{(item as any).description}</span>
+                     </div>
                   )}
                 </td>
 
                 <td className="px-6 py-4">
-                   <p className="text-xs text-slate-500 truncate max-w-[200px]">
-                      {description || '-'}
-                   </p>
+                   {renderUsers()}
                 </td>
 
                 <td className="px-6 py-4">

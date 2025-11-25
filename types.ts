@@ -18,6 +18,15 @@ export interface DocumentItem {
   uploadDate: string;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password?: string; // New password field
+  avatar?: string; // URL or initials
+  color: string; // Tailwind color class for fallback
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -28,6 +37,7 @@ export interface Project {
   endDate?: string;   // YYYY-MM-DD
   priority?: 'low' | 'medium' | 'high';
   status?: 'active' | 'completed' | 'on-hold';
+  members?: string[]; // Array of User IDs
 }
 
 export interface Task {
@@ -39,12 +49,7 @@ export interface Task {
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
   priority: 'low' | 'medium' | 'high';
-}
-
-export interface User {
-  name: string;
-  email: string;
-  avatarUrl: string;
+  assignee?: string; // User ID
 }
 
 export interface ChatMessage {
@@ -55,4 +60,4 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
-export type ViewMode = 'dashboard' | 'projects' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs';
+export type ViewMode = 'dashboard' | 'projects' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs' | 'admin-users';

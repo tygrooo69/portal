@@ -1,15 +1,26 @@
 import React from 'react';
-import { LayoutDashboard, Settings, MessageSquare, Menu, Briefcase } from 'lucide-react';
-import { ViewMode } from '../types';
+import { LayoutDashboard, Settings, MessageSquare, Menu, Briefcase, LogIn, LogOut } from 'lucide-react';
+import { ViewMode, User } from '../types';
 
 interface SidebarProps {
   currentView: ViewMode;
   onNavigate: (view: ViewMode) => void;
   isCollapsed: boolean;
   toggleCollapse: () => void;
+  currentUser: User | null;
+  onLoginClick: () => void;
+  onLogoutClick: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, toggleCollapse }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  currentView, 
+  onNavigate, 
+  isCollapsed, 
+  toggleCollapse, 
+  currentUser,
+  onLoginClick,
+  onLogoutClick
+}) => {
   const navItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'projects', label: 'Projets & Tâches', icon: Briefcase },
@@ -48,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentView === item.id || 
-                           (item.id === 'settings' && (currentView === 'admin-apps' || currentView === 'admin-docs'));
+                           (item.id === 'settings' && (currentView === 'admin-apps' || currentView === 'admin-docs' || currentView === 'admin-users'));
           return (
             <button
               key={item.id}
@@ -66,6 +77,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           );
         })}
       </nav>
+
+      {/* User Profile Section */}
+      <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+        {currentUser ? (
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50`}>
+            <div className={`w-10 h-10 rounded-full ${currentUser.color} flex items-center justify-center text-white font-bold flex-shrink-0 border-2 border-white dark:border-slate-700 shadow-sm`}>
+              {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" /> : currentUser.name.charAt(0)}
+            </div>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{currentUser.name}</p>
+                <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+              </div>
+            )}
+            {!isCollapsed && (
+              <button onClick={onLogoutClick} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Se déconnecter">
+                <LogOut size={18} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <button 
+            onClick={onLoginClick}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start gap-3'} px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors font-medium`}
+          >
+            <LogIn size={20} />
+            {!isCollapsed && <span>S'identifier</span>}
+          </button>
+        )}
+      </div>
     </div>
   );
 };

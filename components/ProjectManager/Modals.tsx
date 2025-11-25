@@ -1,23 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2 } from 'lucide-react';
-import { Project, Task } from '../../types';
+import { X, Save, Trash2, Users } from 'lucide-react';
+import { Project, Task, User } from '../../types';
 
 interface TaskModalProps {
   task: Task | Partial<Task> | null;
+  users: User[];
   onSave: (task: Partial<Task>) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
   isNew?: boolean;
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ task, onSave, onDelete, onClose, isNew }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({ task, users, onSave, onDelete, onClose, isNew }) => {
   const [formData, setFormData] = useState<Partial<Task>>({
     title: '',
     description: '',
     status: 'todo',
     priority: 'medium',
     startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
+    endDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+    assignee: ''
   });
 
   useEffect(() => {
@@ -25,7 +27,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, onSave, onDelete, on
       setFormData({ 
         ...formData, 
         ...task,
-        description: task.description || '' // Ensure description is handled
+        description: task.description || '',
+        assignee: task.assignee || ''
       });
     }
   }, [task]);
@@ -36,7 +39,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, onSave, onDelete, on
     onClose();
   };
 
-  // Correction: On ne retourne null que si on n'a pas de tâche ET qu'on n'est pas en mode création
   if (!task && !isNew) return null;
 
   return (
@@ -70,6 +72,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, onSave, onDelete, on
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white resize-none" 
               placeholder="Détails de la tâche..."
             />
+          </div>
+
+          <div>
+             <label className="block text-xs font-medium text-slate-500 mb-1">Responsable</label>
+             <select 
+               value={formData.assignee || ''} 
+               onChange={(e) => setFormData({...formData, assignee: e.target.value})} 
+               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+             >
+               <option value="">Non assigné</option>
+               {users.map(user => (
+                 <option key={user.id} value={user.id}>{user.name}</option>
+               ))}
+             </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -117,25 +133,31 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, onSave, onDelete, on
 
 interface ProjectModalProps {
   project: Project | Partial<Project> | null;
+  users: User[];
   onSave: (project: Partial<Project>) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
   isNew?: boolean;
 }
 
-export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onSave, onDelete, onClose, isNew }) => {
+export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSave, onDelete, onClose, isNew }) => {
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     description: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
     priority: 'medium',
-    status: 'active'
+    status: 'active',
+    members: []
   });
 
   useEffect(() => {
     if (project) {
-      setFormData({ ...formData, ...project });
+      setFormData({ 
+        ...formData, 
+        ...project,
+        members: project.members || []
+      });
     }
   }, [project]);
 
@@ -143,6 +165,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onSave, onD
     e.preventDefault();
     onSave(formData);
     onClose();
+  };
+
+  const toggleMember = (userId: string) => {
+    const currentMembers = formData.members || [];
+    if (currentMembers.includes(userId)) {
+      setFormData({ ...formData, members: currentMembers.filter(id => id !== userId) });
+    } else {
+      setFormData({ ...formData, members: [...currentMembers, userId] });
+    }
   };
 
   if (!project && !isNew) return null;
@@ -208,6 +239,29 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onSave, onD
                  <option value="completed">Terminé</option>
                </select>
             </div>
+          </div>
+
+          <div>
+             <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
+               <Users size={12} /> Membres de l'équipe
+             </label>
+             <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 max-h-32 overflow-y-auto">
+                {users.map(user => {
+                  const isSelected = (formData.members || []).includes(user.id);
+                  return (
+                    <div 
+                      key={user.id} 
+                      onClick={() => toggleMember(user.id)}
+                      className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800' : 'hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'}`}
+                    >
+                       <div className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[10px] text-white font-bold`}>
+                         {user.name.charAt(0)}
+                       </div>
+                       <span className={`text-xs ${isSelected ? 'font-medium text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-400'}`}>{user.name}</span>
+                    </div>
+                  );
+                })}
+             </div>
           </div>
 
           <div className="pt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 mt-6">

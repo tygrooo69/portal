@@ -1,10 +1,11 @@
-import { AppItem, DocumentItem, Project, Task } from '../types';
+import { AppItem, DocumentItem, Project, Task, User } from '../types';
 
 interface StorageData {
   apps: AppItem[];
   documents: DocumentItem[];
   projects?: Project[];
   tasks?: Task[];
+  users?: User[];
   apiKey?: string;
   adminPassword?: string;
 }
@@ -29,6 +30,7 @@ export const api = {
     documents: DocumentItem[], 
     projects: Project[], 
     tasks: Task[], 
+    users: User[],
     apiKey?: string, 
     adminPassword?: string
   ): Promise<boolean> {
@@ -38,7 +40,7 @@ export const api = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apps, documents, projects, tasks, apiKey, adminPassword }),
+        body: JSON.stringify({ apps, documents, projects, tasks, users, apiKey, adminPassword }),
       });
       return response.ok;
     } catch (error) {

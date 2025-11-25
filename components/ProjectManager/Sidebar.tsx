@@ -5,6 +5,7 @@ import { Project } from '../../types';
 interface SidebarProps {
   projects: Project[];
   activeProjectId: string | null;
+  canCreate: boolean;
   onSelectProject: (id: string | null) => void;
   onAddProjectClick: () => void;
   onDeleteProject: (id: string) => void;
@@ -13,7 +14,8 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   projects, 
-  activeProjectId, 
+  activeProjectId,
+  canCreate,
   onSelectProject, 
   onAddProjectClick, 
   onDeleteProject,
@@ -24,13 +26,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col print:hidden">
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
          <h2 className="font-bold text-slate-800 dark:text-white">Projets</h2>
-         <button 
-           onClick={onAddProjectClick} 
-           className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
-           title="Nouveau projet"
-         >
-           <Plus size={20} className="text-blue-600 group-hover:scale-110 transition-transform" />
-         </button>
+         {canCreate && (
+           <button 
+             onClick={onAddProjectClick} 
+             className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
+             title="Nouveau projet"
+           >
+             <Plus size={20} className="text-blue-600 group-hover:scale-110 transition-transform" />
+           </button>
+         )}
       </div>
       
       <div className="flex-1 overflow-y-auto p-2 space-y-1">

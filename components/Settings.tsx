@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Moon, Sun, Key, Lock, Unlock, ChevronRight, AppWindow, FileText, ShieldCheck } from 'lucide-react';
+import { Moon, Sun, Key, Lock, Unlock, ChevronRight, AppWindow, FileText, ShieldCheck, Users } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface SettingsProps {
@@ -134,6 +134,22 @@ export const Settings: React.FC<SettingsProps> = ({
                 <div className="text-left">
                   <p className="font-semibold text-slate-800 dark:text-white">Gérer les Documents</p>
                   <p className="text-xs text-slate-500">Base de connaissances pour l'Assistant IA</p>
+                </div>
+              </div>
+              <ChevronRight className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+            </button>
+
+            <button 
+              onClick={() => onNavigate('admin-users')}
+              className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 rounded-lg flex items-center justify-center">
+                  <Users size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-slate-800 dark:text-white">Gérer l'Équipe</p>
+                  <p className="text-xs text-slate-500">Ajouter ou supprimer des utilisateurs</p>
                 </div>
               </div>
               <ChevronRight className="text-slate-400 group-hover:text-blue-500 transition-colors" />

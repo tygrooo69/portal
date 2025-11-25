@@ -4,9 +4,11 @@ import { Dashboard } from './components/Dashboard';
 import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { AdminDocuments } from './components/AdminDocuments';
+import { AdminUsers } from './components/AdminUsers';
 import { Settings } from './components/Settings';
+import { LoginModal } from './components/LoginModal';
 import { ProjectManager } from './components/ProjectManager/index';
-import { ViewMode, AppItem, DocumentItem, Project, Task } from './types';
+import { ViewMode, AppItem, DocumentItem, Project, Task, User } from './types';
 import { Moon, Sun } from 'lucide-react';
 import { api } from './services/api';
 
@@ -26,9 +28,13 @@ const App: React.FC = () => {
   const [apps, setApps] = useState<AppItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   
-  // New State for Projects
+  // New State for Projects & Users
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  
   const [targetProjectId, setTargetProjectId] = useState<string | null>(null);
   const [targetTaskId, setTargetTaskId] = useState<string | null>(null);
 
@@ -48,9 +54,10 @@ const App: React.FC = () => {
         setApps(serverData.apps.length > 0 ? serverData.apps : DEFAULT_APPS);
         setDocuments(serverData.documents || []);
         
-        // Load Projects & Tasks
+        // Load Projects & Tasks & Users
         if (serverData.projects) setProjects(serverData.projects);
         if (serverData.tasks) setTasks(serverData.tasks);
+        if (serverData.users) setUsers(serverData.users); // Load users from DB
 
         if (serverData.apiKey) setApiKey(serverData.apiKey);
         if (serverData.adminPassword) setAdminPassword(serverData.adminPassword);
@@ -77,9 +84,20 @@ const App: React.FC = () => {
         if (savedTasks) {
           try { setTasks(JSON.parse(savedTasks)); } catch (e) { console.error(e); }
         }
+
+        const savedUsers = localStorage.getItem('lumina_users');
+        if (savedUsers) {
+          try { setUsers(JSON.parse(savedUsers)); } catch (e) { console.error(e); }
+        }
         
         const savedKey = localStorage.getItem('lumina_api_key');
         if (savedKey) setApiKey(savedKey);
+      }
+      
+      // Load current user from session if available
+      const savedUserSession = sessionStorage.getItem('lumina_current_user');
+      if (savedUserSession) {
+        try { setCurrentUser(JSON.parse(savedUserSession)); } catch (e) {}
       }
 
       // Check theme
@@ -107,6 +125,7 @@ const App: React.FC = () => {
     newDocs: DocumentItem[], 
     newProjects: Project[],
     newTasks: Task[],
+    newUsers: User[],
     newKey?: string, 
     newPwd?: string
   ) => {
@@ -118,6 +137,7 @@ const App: React.FC = () => {
     setDocuments(newDocs);
     setProjects(newProjects);
     setTasks(newTasks);
+    setUsers(newUsers);
 
     if (newKey !== undefined) setApiKey(newKey);
     if (newPwd !== undefined) setAdminPassword(newPwd);
@@ -129,6 +149,7 @@ const App: React.FC = () => {
       newDocs || [], 
       newProjects || [], 
       newTasks || [], 
+      newUsers || [],
       keyToSave, 
       pwdToSave
     );
@@ -140,6 +161,7 @@ const App: React.FC = () => {
         localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
         localStorage.setItem('lumina_projects', JSON.stringify(newProjects));
         localStorage.setItem('lumina_tasks', JSON.stringify(newTasks));
+        localStorage.setItem('lumina_users', JSON.stringify(newUsers));
         if (newKey !== undefined) localStorage.setItem('lumina_api_key', newKey);
       } catch (e) {
         console.warn("LocalStorage quota exceeded or error", e);
@@ -148,40 +170,40 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    persistData(apps, documents, projects, tasks, key, undefined);
+    persistData(apps, documents, projects, tasks, users, key, undefined);
   };
 
   const handleSaveAdminPassword = (password: string) => {
-    persistData(apps, documents, projects, tasks, undefined, password);
+    persistData(apps, documents, projects, tasks, users, undefined, password);
   };
 
   const handleAddApp = (app: AppItem) => {
-    persistData([...apps, app], documents, projects, tasks);
+    persistData([...apps, app], documents, projects, tasks, users);
   };
 
   const handleUpdateApp = (updatedApp: AppItem) => {
-    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks);
+    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks, users);
   };
 
   const handleDeleteApp = (id: string) => {
-    persistData(apps.filter(a => a.id !== id), documents, projects, tasks);
+    persistData(apps.filter(a => a.id !== id), documents, projects, tasks, users);
   };
 
   const handleAddDocuments = (newDocs: DocumentItem[]) => {
-    persistData(apps, [...documents, ...newDocs], projects, tasks);
+    persistData(apps, [...documents, ...newDocs], projects, tasks, users);
   };
 
   const handleDeleteDocument = (id: string) => {
-    persistData(apps, documents.filter(d => d.id !== id), projects, tasks);
+    persistData(apps, documents.filter(d => d.id !== id), projects, tasks, users);
   };
 
   // --- Project Handlers ---
   const handleAddProject = (project: Project) => {
-    persistData(apps, documents, [...projects, project], tasks);
+    persistData(apps, documents, [...projects, project], tasks, users);
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
-    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks);
+    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users);
   };
 
   const handleDeleteProject = (id: string) => {
@@ -190,20 +212,55 @@ const App: React.FC = () => {
       apps, 
       documents, 
       projects.filter(p => p.id !== id), 
-      tasks.filter(t => t.projectId !== id)
+      tasks.filter(t => t.projectId !== id),
+      users
     );
   };
 
   const handleAddTask = (task: Task) => {
-    persistData(apps, documents, projects, [...tasks, task]);
+    persistData(apps, documents, projects, [...tasks, task], users);
   };
 
   const handleUpdateTask = (updatedTask: Task) => {
-    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users);
   };
 
   const handleDeleteTask = (id: string) => {
-    persistData(apps, documents, projects, tasks.filter(t => t.id !== id));
+    persistData(apps, documents, projects, tasks.filter(t => t.id !== id), users);
+  };
+
+  // --- User Handlers ---
+  const handleAddUser = (user: User) => {
+    persistData(apps, documents, projects, tasks, [...users, user]);
+  };
+
+  const handleUpdateUser = (updatedUser: User) => {
+    const newUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+    persistData(apps, documents, projects, tasks, newUsers);
+    
+    // If the updated user is the current user, update session
+    if (currentUser && currentUser.id === updatedUser.id) {
+       setCurrentUser(updatedUser);
+       sessionStorage.setItem('lumina_current_user', JSON.stringify(updatedUser));
+    }
+  };
+
+  const handleDeleteUser = (id: string) => {
+    persistData(apps, documents, projects, tasks, users.filter(u => u.id !== id));
+    if (currentUser && currentUser.id === id) {
+      handleLogout();
+    }
+  };
+
+  // --- Login / Logout ---
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    sessionStorage.setItem('lumina_current_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    sessionStorage.removeItem('lumina_current_user');
   };
 
   const handleProjectClickFromDashboard = (projectId: string) => {
@@ -215,6 +272,12 @@ const App: React.FC = () => {
   const handleTaskClickFromDashboard = (taskId: string, projectId: string) => {
     setTargetProjectId(projectId);
     setTargetTaskId(taskId); // Set task selection
+    setView('projects');
+  };
+
+  const handleNavigateToProjects = () => {
+    setTargetProjectId(null);
+    setTargetTaskId(null);
     setView('projects');
   };
 
@@ -231,8 +294,10 @@ const App: React.FC = () => {
             documents={documents} 
             projects={projects} 
             tasks={tasks}
+            currentUser={currentUser}
             onProjectClick={handleProjectClickFromDashboard} 
             onTaskClick={handleTaskClickFromDashboard}
+            onNavigateToProjects={handleNavigateToProjects}
           />
         );
       case 'projects':
@@ -240,6 +305,8 @@ const App: React.FC = () => {
           <ProjectManager 
              projects={projects}
              tasks={tasks}
+             users={users}
+             currentUser={currentUser}
              initialActiveProjectId={targetProjectId}
              initialEditingTaskId={targetTaskId}
              onAddProject={handleAddProject}
@@ -275,6 +342,16 @@ const App: React.FC = () => {
             onBack={() => setView('settings')}
           />
         );
+      case 'admin-users':
+        return (
+          <AdminUsers 
+             users={users}
+             onAddUser={handleAddUser}
+             onUpdateUser={handleUpdateUser}
+             onDeleteUser={handleDeleteUser}
+             onBack={() => setView('settings')}
+          />
+        );
       case 'settings':
         return (
           <Settings 
@@ -288,7 +365,14 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard apps={apps} documents={documents} projects={projects} />;
+        return (
+           <Dashboard 
+             apps={apps} 
+             documents={documents} 
+             projects={projects} 
+             currentUser={currentUser} 
+           />
+        );
     }
   };
 
@@ -299,11 +383,22 @@ const App: React.FC = () => {
         onNavigate={(v) => { setView(v); setTargetProjectId(null); setTargetTaskId(null); }} 
         isCollapsed={isSidebarCollapsed}
         toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        currentUser={currentUser}
+        onLoginClick={() => setIsLoginModalOpen(true)}
+        onLogoutClick={handleLogout}
       />
       
+      {isLoginModalOpen && (
+        <LoginModal 
+           users={users}
+           onLogin={handleLogin}
+           onClose={() => setIsLoginModalOpen(false)}
+        />
+      )}
+
       <main className="flex-1 h-full overflow-hidden flex flex-col relative">
         {/* Theme Toggle - Visible on most screens except admin/settings */}
-        {view !== 'settings' && view !== 'admin-apps' && view !== 'admin-docs' && (
+        {view !== 'settings' && view !== 'admin-apps' && view !== 'admin-docs' && view !== 'admin-users' && (
           <div className="absolute top-6 right-6 z-40 hidden md:block">
             <button 
               onClick={toggleTheme}
