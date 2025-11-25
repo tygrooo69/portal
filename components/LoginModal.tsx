@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { LogIn, X, AlertCircle } from 'lucide-react';
+import { LogIn, X, AlertCircle, Info } from 'lucide-react';
 
 interface LoginModalProps {
   users: User[];
@@ -93,8 +93,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ users, onLogin, onClose 
             </button>
           </div>
           
-          <div className="text-center mt-4">
-             <p className="text-xs text-slate-400">Pour tester, utilisez les emails par défaut (ex: alice@lumina.com) avec le mot de passe "1234".</p>
+          <div className="text-center mt-6 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+             <div className="flex flex-col items-center gap-2">
+                <Info size={16} className="text-blue-500" />
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Pas encore de compte ?
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Veuillez contacter le <span className="font-semibold text-blue-600 dark:text-blue-400">support informatique</span> pour la création de vos accès.
+                </p>
+             </div>
+          </div>
+
+          <div className="text-center mt-2">
+             <p className="text-[10px] text-slate-400 opacity-60">Test: alice@lumina.com / 1234</p>
           </div>
         </form>
       </div>

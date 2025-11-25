@@ -298,11 +298,62 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       <style>{`
         @media print {
           @page { size: landscape; margin: 1cm; }
-          body > * { display: none !important; }
-          body { background: white !important; overflow: visible !important; height: auto !important; }
-          #project-printable-area, #project-printable-area * { visibility: visible !important; display: block; }
-          #project-printable-area { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; z-index: 9999 !important; background: white !important; }
-          .no-print, button, input, select, ::-webkit-scrollbar { display: none !important; }
+          
+          /* Reset root containers to allow full content printing */
+          html, body, #root, main {
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+            background: white !important;
+          }
+
+          /* Hide everything by default using visibility, so we can reveal children */
+          body * {
+            visibility: hidden;
+          }
+
+          /* Show the printable area and its content */
+          #project-printable-area, #project-printable-area * {
+            visibility: visible;
+          }
+
+          /* Position the printable area at top-left */
+          #project-printable-area {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 9999;
+            background: white !important;
+          }
+
+          /* Hide UI controls */
+          .no-print, button, input, select, ::-webkit-scrollbar {
+            display: none !important;
+          }
+
+          /* Override overflow for lists and grids to print full content */
+          .overflow-x-auto, .overflow-y-auto, .overflow-hidden {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          
+          /* Ensure colors are printed */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Specific fixes for text colors in print */
+          .text-white { color: black !important; }
+          .text-slate-600, .text-slate-500 { color: #333 !important; }
+          .bg-blue-500 { background-color: #3b82f6 !important; }
+          .bg-green-500 { background-color: #22c55e !important; }
+          .bg-slate-400 { background-color: #94a3b8 !important; }
         }
       `}</style>
       
