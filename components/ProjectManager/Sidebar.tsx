@@ -24,20 +24,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className="hidden md:flex w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col print:hidden">
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800">
          <h2 className="font-bold text-slate-800 dark:text-white">Projets</h2>
-         {canCreate && (
-           <button 
-             onClick={onAddProjectClick} 
-             className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
-             title="Nouveau projet"
-           >
-             <Plus size={20} className="text-blue-600 group-hover:scale-110 transition-transform" />
-           </button>
-         )}
       </div>
       
       <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+        {canCreate && (
+          <button 
+            onClick={onAddProjectClick}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium text-sm shadow-md shadow-blue-500/20"
+          >
+            <Plus size={18} />
+            <span>Créer un projet</span>
+          </button>
+        )}
+
         <div 
            onClick={() => onSelectProject(null)}
            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors mb-2 ${

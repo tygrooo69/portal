@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Save, Send, ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Save, Send, ArrowLeft, Calendar as CalendarIcon, Upload, X, Image, UserPlus, Copy } from 'lucide-react';
 import { User, Timesheet, TimesheetEntry } from '../../types';
 import { getMonday, getWeekDays } from './utils';
 import { ConfirmModal } from '../ConfirmModal';
@@ -20,6 +20,12 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedManager, setSelectedManager] = useState<string>('');
   
+  // Interim State
+  const [showInterimModal, setShowInterimModal] = useState(false);
+  const [interimName, setInterimName] = useState('');
+  const [interimFiles, setInterimFiles] = useState<string[]>([]); // Base64 strings
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   // Delete Confirmation State
   const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
 
@@ -27,7 +33,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
 
   useEffect(() => {
     const weekStr = currentWeekStart.toISOString().split('T')[0];
-    const existingSheet = timesheets.find(t => t.userId === currentUser.id && t.weekStartDate === weekStr);
+    // Only load standard timesheets for the current view, interim are separate submissions
+    const existingSheet = timesheets.find(t => t.userId === currentUser.id && t.weekStartDate === weekStr && (!t.type || t.type === 'standard'));
     
     if (existingSheet) {
       setCurrentTimesheet(existingSheet);
@@ -37,6 +44,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
         userId: currentUser.id,
         weekStartDate: weekStr,
         status: 'draft',
+        type: 'standard',
         entries: [
           { id: Date.now().toString(), businessId: '', zone: '', site: '', hours: [0,0,0,0,0,0,0] }
         ]
@@ -85,6 +93,45 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
     setCurrentTimesheet({ ...currentTimesheet, entries: [...currentTimesheet.entries, newRow] });
   };
 
+  const handleCopyPreviousWeek = () => {
+    const prevDate = new Date(currentWeekStart);
+    prevDate.setDate(prevDate.getDate() - 7);
+    const prevWeekStr = prevDate.toISOString().split('T')[0];
+
+    const prevSheet = timesheets.find(t => 
+      t.userId === currentUser.id && 
+      t.weekStartDate === prevWeekStr && 
+      (!t.type || t.type === 'standard')
+    );
+
+    if (!prevSheet || !prevSheet.entries || prevSheet.entries.length === 0) {
+      alert("Aucune feuille trouvée pour la semaine précédente (" + prevDate.toLocaleDateString() + ").");
+      return;
+    }
+
+    // Clone entries but generate new IDs and reset hours to 0
+    const newEntries = prevSheet.entries.map(entry => ({
+      id: Date.now().toString() + Math.random(),
+      businessId: entry.businessId,
+      zone: entry.zone,
+      site: entry.site,
+      hours: [0, 0, 0, 0, 0, 0, 0]
+    }));
+
+    if (currentTimesheet) {
+      // Remove initial empty row if it exists and is empty before adding copied rows
+      let currentEntries = [...currentTimesheet.entries];
+      if (currentEntries.length === 1 && !currentEntries[0].businessId && !currentEntries[0].site) {
+         currentEntries = [];
+      }
+
+      setCurrentTimesheet({
+        ...currentTimesheet,
+        entries: [...currentEntries, ...newEntries]
+      });
+    }
+  };
+
   const requestRemoveEntryRow = (entryId: string) => {
     setDeleteEntryId(entryId);
   };
@@ -116,6 +163,62 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
       managerId: selectedManager
     });
     setShowSubmitModal(false);
+  };
+
+  // --- INTERIM LOGIC ---
+  const handleInterimFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            setInterimFiles(prev => [...prev, reader.result as string]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeInterimFile = (index: number) => {
+    setInterimFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const submitInterimTimesheet = () => {
+    if (!selectedManager) {
+      alert("Veuillez sélectionner un responsable.");
+      return;
+    }
+    if (!interimName) {
+      alert("Veuillez entrer le nom de l'intérimaire.");
+      return;
+    }
+    if (interimFiles.length === 0) {
+      alert("Veuillez ajouter au moins une photo.");
+      return;
+    }
+
+    const newSheet: Timesheet = {
+      id: Date.now().toString(),
+      userId: currentUser.id, // Submitted BY current user
+      managerId: selectedManager,
+      weekStartDate: currentWeekStart.toISOString().split('T')[0],
+      status: 'submitted',
+      type: 'interim',
+      interimName: interimName,
+      attachments: interimFiles,
+      submittedAt: new Date().toISOString(),
+      entries: [], // Empty entries for interim
+      isProcessed: false
+    };
+
+    onSaveTimesheet(newSheet);
+    setShowInterimModal(false);
+    setInterimName('');
+    setInterimFiles([]);
+    setSelectedManager('');
+    alert("Feuille intérimaire transmise !");
   };
 
   const weekDays = getWeekDays(currentWeekStart);
@@ -354,15 +457,23 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
             {/* Common Actions */}
             {!isReadOnly && (
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button onClick={addEntryRow} className="w-full md:w-auto flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 font-medium py-2 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl transition-colors">
-                  <Plus size={18} /> Ajouter une ligne
-                </button>
+                <div className="flex gap-3 w-full md:w-auto flex-wrap">
+                  <button onClick={addEntryRow} className="flex-1 md:flex-none flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 font-medium py-2 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl transition-colors whitespace-nowrap">
+                    <Plus size={18} /> Ajouter ligne
+                  </button>
+                  <button onClick={handleCopyPreviousWeek} className="flex-1 md:flex-none flex items-center justify-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium py-2 px-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl transition-colors whitespace-nowrap">
+                    <Copy size={18} /> Dupliquer sem. préc.
+                  </button>
+                  <button onClick={() => { setShowInterimModal(true); setSelectedManager(''); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 text-purple-600 hover:text-purple-700 font-medium py-2 px-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl transition-colors whitespace-nowrap">
+                    <UserPlus size={18} /> Intérimaire
+                  </button>
+                </div>
 
                 <div className="flex gap-3 w-full md:w-auto">
                   <button onClick={saveDraft} className="flex-1 md:flex-none px-6 py-3 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-xl font-medium hover:bg-slate-200 flex items-center justify-center gap-2">
                     <Save size={18} /> <span className="md:hidden">Brouillon</span><span className="hidden md:inline">Enregistrer Brouillon</span>
                   </button>
-                  <button onClick={() => setShowSubmitModal(true)} className="flex-1 md:flex-none px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                  <button onClick={() => { setShowSubmitModal(true); setSelectedManager(''); }} className="flex-1 md:flex-none px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
                     <Send size={18} /> Soumettre
                   </button>
                 </div>
@@ -382,7 +493,9 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                     .map(t => (
                       <div key={t.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-between">
                          <div>
-                           <p className="text-sm font-medium">Semaine {t.weekStartDate}</p>
+                           <p className="text-sm font-medium">
+                             {t.type === 'interim' ? `Intérim: ${t.interimName}` : `Semaine ${t.weekStartDate}`}
+                           </p>
                            <p className="text-xs text-slate-500">Resp: {users.find(u => u.id === t.managerId)?.name || '?'}</p>
                          </div>
                          <div className={`px-2 py-1 rounded-full text-xs font-bold ${
@@ -426,6 +539,80 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
               <div className="flex gap-3 justify-end">
                  <button onClick={() => setShowSubmitModal(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300">Annuler</button>
                  <button onClick={confirmSubmitTimesheet} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Envoyer</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Interim Modal */}
+      {showInterimModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 w-full max-w-lg border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+              <div className="flex justify-between items-start mb-6">
+                 <div>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Saisie Intérimaire</h3>
+                    <p className="text-sm text-slate-500">Envoyez les photos des feuilles d'heures papier.</p>
+                 </div>
+                 <button onClick={() => setShowInterimModal(false)} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+              
+              <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar p-1">
+                 <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Nom de l'intérimaire</label>
+                    <input 
+                      type="text" 
+                      value={interimName}
+                      onChange={(e) => setInterimName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: Michel Durand"
+                    />
+                 </div>
+
+                 <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Photos / Scans</label>
+                    <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                       <Upload size={24} className="text-slate-400 mb-2" />
+                       <span className="text-sm text-slate-500">Cliquez pour ajouter des images</span>
+                       <input type="file" ref={fileInputRef} multiple accept="image/*" className="hidden" onChange={handleInterimFileSelect} />
+                    </div>
+                 </div>
+
+                 {interimFiles.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                       {interimFiles.map((src, index) => (
+                          <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 group">
+                             <img src={src} alt={`Scan ${index}`} className="w-full h-full object-cover" />
+                             <button onClick={() => removeInterimFile(index)} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                <X size={12} />
+                             </button>
+                          </div>
+                       ))}
+                    </div>
+                 )}
+
+                 <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Responsable (Validation)</label>
+                    <select 
+                      value={selectedManager}
+                      onChange={(e) => setSelectedManager(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                    >
+                      <option value="">-- Sélectionner --</option>
+                      {managers.map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.role === 'admin' ? 'Responsable' : 'Assistant'})</option>
+                      ))}
+                    </select>
+                 </div>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+                 <button onClick={() => setShowInterimModal(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">Annuler</button>
+                 <button onClick={submitInterimTimesheet} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                    <Send size={16} /> Envoyer
+                 </button>
               </div>
            </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, X, Edit2, Check, ChevronLeft, Lock, Shield, Briefcase } from 'lucide-react';
+import { Plus, Trash2, X, Edit2, Check, ChevronLeft, Lock, Shield, Briefcase, Copy, User as UserIcon, Search } from 'lucide-react';
 import { User } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -21,6 +21,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
   const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Delete Confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -33,10 +34,24 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
     color: 'bg-blue-500',
     avatar: '',
     role: 'user',
-    service: ''
+    service: '',
+    employeeCode: '',
+    jobTitle: '',
+    secteur: ''
   };
 
   const [newUserForm, setNewUserForm] = useState<User>({ ...emptyForm });
+
+  // Filter Logic
+  const filteredUsers = users.filter(user => {
+    const query = searchQuery.toLowerCase();
+    return (
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query) ||
+      (user.service && user.service.toLowerCase().includes(query)) ||
+      (user.employeeCode && user.employeeCode.toLowerCase().includes(query))
+    );
+  });
 
   const handleEditClick = (user: User) => {
     setIsEditing(user.id);
@@ -54,6 +69,25 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
       setIsEditing(null);
       setEditForm({});
     }
+  };
+
+  const handleDuplicateClick = (user: User) => {
+    // Pre-fill form with shared team attributes (Role, Service, Color, Job Title, Secteur)
+    // But clear unique fields (Name, Email, Password, Employee Code)
+    setNewUserForm({
+      ...emptyForm,
+      role: user.role,
+      service: user.service,
+      color: user.color,
+      jobTitle: user.jobTitle,
+      secteur: user.secteur,
+      employeeCode: ''
+    });
+    setIsAdding(true);
+    
+    // Scroll to top to show form
+    const mainContainer = document.querySelector('main');
+    if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -135,6 +169,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                   onChange={e => setNewUserForm({...newUserForm, name: e.target.value})}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
                   placeholder="Ex: Jean Dupont"
+                  autoFocus
                 />
               </div>
               <div>
@@ -180,9 +215,49 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                       value={newUserForm.service || ''}
                       onChange={e => setNewUserForm({...newUserForm, service: e.target.value})}
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
-                      placeholder="Ex: Maçonnerie"
+                      placeholder="Ex: GT, MT, .."
                     />
                  </div>
+               </div>
+
+               {/* Adibat Section */}
+               <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 relative mt-2">
+                  <span className="absolute -top-2.5 left-3 bg-white dark:bg-slate-900 px-1 text-[10px] font-semibold text-slate-500">Adibat</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Code Salarié</label>
+                        <input 
+                          type="text"
+                          value={newUserForm.employeeCode || ''}
+                          onChange={e => setNewUserForm({...newUserForm, employeeCode: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                          placeholder="Ex: 00123"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Poste</label>
+                        <input 
+                          type="text"
+                          value={newUserForm.jobTitle || ''}
+                          onChange={e => setNewUserForm({...newUserForm, jobTitle: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                          placeholder="Ex: MOP1, MOA1, .."
+                        />
+                    </div>
+                  </div>
+                  
+                  {newUserForm.role === 'admin' && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                       <label className="block text-xs font-medium text-slate-500 mb-1">Secteur (Responsable)</label>
+                       <input 
+                          type="text"
+                          value={newUserForm.secteur || ''}
+                          onChange={e => setNewUserForm({...newUserForm, secteur: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                          placeholder="Ex: R5, 31, .."
+                        />
+                    </div>
+                  )}
                </div>
 
               <ColorSelector value={newUserForm.color} onChange={color => setNewUserForm({...newUserForm, color})} />
@@ -197,8 +272,20 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
         </div>
       )}
 
+      {/* Search Bar */}
+      <div className="mb-6 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        <input
+          type="text"
+          placeholder="Rechercher par nom, email, service ou code..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white shadow-sm transition-all"
+        />
+      </div>
+
       <div className="grid grid-cols-1 gap-4">
-        {users.map(user => {
+        {filteredUsers.map(user => {
           const isItemEditing = isEditing === user.id;
 
           if (isItemEditing) {
@@ -245,10 +332,50 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                         value={editForm.service || ''}
                         onChange={e => setEditForm({...editForm, service: e.target.value})}
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
-                        placeholder="Service"
+                        placeholder="Ex: GT, MT, .."
                       />
                    </div>
                  </div>
+
+                 {/* Adibat Section (Edit Mode) */}
+                 <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 relative">
+                    <span className="absolute -top-2.5 left-3 bg-white dark:bg-slate-900 px-1 text-[10px] font-semibold text-slate-500">Adibat</span>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Code Salarié</label>
+                          <input 
+                            type="text"
+                            value={editForm.employeeCode || ''}
+                            onChange={e => setEditForm({...editForm, employeeCode: e.target.value})}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                            placeholder="Code"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Poste</label>
+                          <input 
+                            type="text"
+                            value={editForm.jobTitle || ''}
+                            onChange={e => setEditForm({...editForm, jobTitle: e.target.value})}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                            placeholder="Ex: MOP1, MOA1, .."
+                          />
+                      </div>
+                    </div>
+                    {editForm.role === 'admin' && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                           <label className="block text-xs font-medium text-slate-500 mb-1">Secteur (Responsable)</label>
+                           <input 
+                              type="text"
+                              value={editForm.secteur || ''}
+                              onChange={e => setEditForm({...editForm, secteur: e.target.value})}
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                              placeholder="Ex: R5, 31, .."
+                            />
+                        </div>
+                    )}
+                 </div>
+
                  <ColorSelector value={editForm.color || 'bg-blue-500'} onChange={color => setEditForm({...editForm, color})} />
                  <div className="flex justify-end gap-2">
                     <button onClick={handleSaveEdit} className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 flex items-center gap-2"><Check size={16}/> Enregistrer</button>
@@ -259,20 +386,20 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
           }
 
           return (
-            <div key={user.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full ${user.color} flex items-center justify-center text-white font-bold text-lg shadow-sm relative`}>
+            <div key={user.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between group hover:shadow-md transition-all gap-4">
+              <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className={`w-12 h-12 rounded-full ${user.color} flex items-center justify-center text-white font-bold text-lg shadow-sm relative flex-shrink-0`}>
                   {getInitials(user.name)}
                   {user.role === 'admin' && <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"><Shield size={10} /></div>}
                   {user.role === 'assistant' && <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full p-1"><Briefcase size={10} /></div>}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                     {user.name}
                     {user.password && <Lock size={12} className="text-slate-400" />}
                   </h3>
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <span>{user.email}</span>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                    <span className="truncate">{user.email}</span>
                     {user.service && (
                       <>
                         <span>•</span>
@@ -280,9 +407,36 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                       </>
                     )}
                   </div>
+                  {/* Display Adibat Information */}
+                  {(user.employeeCode || user.jobTitle || user.secteur) && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        {user.employeeCode && (
+                            <span className="bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 px-2 py-1 rounded border border-slate-100 dark:border-slate-700 flex items-center gap-1">
+                                <span className="font-medium">Code:</span> {user.employeeCode}
+                            </span>
+                        )}
+                        {user.jobTitle && (
+                            <span className="bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 px-2 py-1 rounded border border-slate-100 dark:border-slate-700 flex items-center gap-1">
+                                <span className="font-medium">Poste:</span> {user.jobTitle}
+                            </span>
+                        )}
+                        {user.role === 'admin' && user.secteur && (
+                            <span className="bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-300 px-2 py-1 rounded border border-red-100 dark:border-red-800 flex items-center gap-1">
+                                <span className="font-medium">Secteur:</span> {user.secteur}
+                            </span>
+                        )}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity self-end md:self-center">
+                <button 
+                  onClick={() => handleDuplicateClick(user)} 
+                  className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                  title="Dupliquer (créer un membre similaire)"
+                >
+                  <Copy size={18} />
+                </button>
                 <button onClick={() => handleEditClick(user)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <Edit2 size={18} />
                 </button>
@@ -293,6 +447,11 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
             </div>
           );
         })}
+        {filteredUsers.length === 0 && (
+          <div className="text-center p-8 text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+            Aucun utilisateur trouvé.
+          </div>
+        )}
       </div>
 
       <ConfirmModal 

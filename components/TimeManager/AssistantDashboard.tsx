@@ -1,8 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Filter, CheckSquare, Square, CheckCircle, Search, X, Calendar, MapPin, Briefcase } from 'lucide-react';
+import { ArrowLeft, Filter, CheckSquare, Square, CheckCircle, Search, X, Calendar, MapPin, Briefcase, UserPlus, Clock, User as UserIcon, Image as ImageIcon, FileText } from 'lucide-react';
 import { User, Timesheet, LeaveRequest } from '../../types';
 import { getWeekDays } from './utils';
+import { TimesheetView } from './TimesheetView';
+import { LeaveView } from './LeaveView';
 
 interface AssistantDashboardProps {
   users: User[];
@@ -10,6 +12,7 @@ interface AssistantDashboardProps {
   leaveRequests: LeaveRequest[];
   onSaveTimesheet: (timesheet: Timesheet) => void;
   onUpdateLeaveRequest: (request: LeaveRequest) => void;
+  onAddLeaveRequest: (request: LeaveRequest) => void;
   onBack: () => void;
 }
 
@@ -24,7 +27,7 @@ const getWeekNumber = (dateString: string) => {
 };
 
 export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
-  users, timesheets, leaveRequests, onSaveTimesheet, onUpdateLeaveRequest, onBack
+  users, timesheets, leaveRequests, onSaveTimesheet, onUpdateLeaveRequest, onAddLeaveRequest, onBack
 }) => {
   const [filterService, setFilterService] = useState<string>('all');
   const [showProcessed, setShowProcessed] = useState(false);
@@ -36,6 +39,11 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
 
   // Drill Down State
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+
+  // Proxy Mode State (Acting on behalf of another user)
+  const [proxyAction, setProxyAction] = useState<'timesheet' | 'leave' | null>(null);
+  const [proxyUserId, setProxyUserId] = useState<string>('');
+  const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
 
   // Get unique services
   const services = Array.from(new Set(users.map(u => u.service).filter(Boolean)));
@@ -64,7 +72,7 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
        const lowerQ = searchQuery.toLowerCase();
        ts = ts.filter(t => {
           const u = users.find(user => user.id === t.userId);
-          return u?.name.toLowerCase().includes(lowerQ);
+          return u?.name.toLowerCase().includes(lowerQ) || (t.interimName && t.interimName.toLowerCase().includes(lowerQ));
        });
        lr = lr.filter(l => {
           const u = users.find(user => user.id === l.userId);
@@ -119,11 +127,88 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
     return [];
   }, [selectedItem]);
 
+  // --- PROXY HANDLERS ---
+  const initiateProxyAction = (action: 'timesheet' | 'leave') => {
+    setProxyAction(action);
+    setProxyUserId('');
+    setIsProxyModalOpen(true);
+  };
+
+  const confirmProxyUser = () => {
+    if (proxyUserId) {
+      setIsProxyModalOpen(false);
+      // The UI will switch to the sub-component view automatically
+    }
+  };
+
+  const exitProxyMode = () => {
+    setProxyAction(null);
+    setProxyUserId('');
+  };
+
+  // --- CONDITIONAL RENDER: PROXY MODES ---
+  if (proxyAction && proxyUserId) {
+    const targetUser = users.find(u => u.id === proxyUserId);
+    if (targetUser) {
+      if (proxyAction === 'timesheet') {
+        return (
+          <div className="flex flex-col h-full">
+             <div className="bg-yellow-50 dark:bg-yellow-900/20 p-2 text-center text-xs text-yellow-700 dark:text-yellow-300 border-b border-yellow-100 dark:border-yellow-800">
+               ⚠️ Mode Mandat : Vous saisissez les temps pour <strong>{targetUser.name}</strong>
+             </div>
+             <TimesheetView 
+               currentUser={targetUser}
+               users={users}
+               timesheets={timesheets}
+               onSaveTimesheet={onSaveTimesheet}
+               onBack={exitProxyMode}
+             />
+          </div>
+        );
+      } else if (proxyAction === 'leave') {
+        return (
+          <div className="flex flex-col h-full">
+             <div className="bg-yellow-50 dark:bg-yellow-900/20 p-2 text-center text-xs text-yellow-700 dark:text-yellow-300 border-b border-yellow-100 dark:border-yellow-800">
+               ⚠️ Mode Mandat : Vous saisissez une demande pour <strong>{targetUser.name}</strong>
+             </div>
+             <LeaveView 
+               currentUser={targetUser}
+               users={users}
+               leaveRequests={leaveRequests}
+               onAddLeaveRequest={onAddLeaveRequest}
+               onBack={exitProxyMode}
+             />
+          </div>
+        );
+      }
+    }
+  }
+
   return (
     <div className="p-6 md:p-8 h-full overflow-y-auto relative">
-      <div className="flex items-center gap-4 mb-6">
-         <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ArrowLeft /></button>
-         <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Espace Assistante</h1>
+      
+      {/* Header & Proxy Buttons */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+         <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ArrowLeft /></button>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Espace Assistante</h1>
+         </div>
+         <div className="flex gap-3">
+            <button 
+              onClick={() => initiateProxyAction('timesheet')}
+              className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-400 text-slate-700 dark:text-slate-300 rounded-xl shadow-sm flex items-center gap-2 text-sm font-medium transition-colors"
+            >
+               <Clock size={16} className="text-blue-600" />
+               Saisir Temps (Tiers)
+            </button>
+            <button 
+              onClick={() => initiateProxyAction('leave')}
+              className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-green-400 text-slate-700 dark:text-slate-300 rounded-xl shadow-sm flex items-center gap-2 text-sm font-medium transition-colors"
+            >
+               <UserPlus size={16} className="text-green-600" />
+               Saisir Congés (Tiers)
+            </button>
+         </div>
       </div>
 
       {/* Filters Area */}
@@ -214,6 +299,7 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
              {filteredData.map((item: any) => {
                const u = users.find(user => user.id === item.userId);
                const isSheet = item._type === 'timesheet';
+               const isInterim = item.type === 'interim';
                
                return (
                  <tr 
@@ -221,16 +307,25 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                     className="hover:bg-blue-50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
                     onClick={() => setSelectedItem(item)}
                  >
-                   <td className="px-6 py-4 font-medium text-slate-800 dark:text-white flex items-center gap-3">
-                     {renderUserAvatar(item.userId)}
-                     {u?.name}
+                   <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">
+                     <div className="flex items-center gap-3">
+                        {renderUserAvatar(item.userId)}
+                        <div>
+                           <p>{u?.name}</p>
+                           {isInterim && <p className="text-[10px] text-purple-600 font-bold">Intérim: {item.interimName}</p>}
+                        </div>
+                     </div>
                    </td>
                    <td className="px-6 py-4 text-slate-500">{u?.service || '-'}</td>
                    <td className="px-6 py-4">
                      {isSheet ? (
-                       <span className="flex items-center gap-2 text-blue-600"><CheckCircle size={16} /> Feuille d'heures</span>
+                       isInterim ? (
+                          <span className="flex items-center gap-2 text-purple-600"><ImageIcon size={16} /> Feuille Intérim</span>
+                       ) : (
+                          <span className="flex items-center gap-2 text-blue-600"><CheckCircle size={16} /> Feuille d'heures</span>
+                       )
                      ) : (
-                       <span className="flex items-center gap-2 text-purple-600"><CheckCircle size={16} /> Congé ({item.type})</span>
+                       <span className="flex items-center gap-2 text-indigo-600"><CheckCircle size={16} /> Congé ({item.type})</span>
                      )}
                    </td>
                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
@@ -266,6 +361,43 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
         </table>
       </div>
 
+      {/* Proxy User Selection Modal */}
+      {isProxyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 dark:border-slate-800 p-6">
+              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-white">Sélectionner un collaborateur</h3>
+              <p className="text-sm text-slate-500 mb-6">Pour qui souhaitez-vous effectuer cette saisie ?</p>
+              
+              <div className="mb-6">
+                 <div className="relative">
+                    <UserIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <select 
+                      value={proxyUserId}
+                      onChange={(e) => setProxyUserId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                       <option value="">-- Choisir une personne --</option>
+                       {users.filter(u => u.role !== 'admin').map(u => (
+                          <option key={u.id} value={u.id}>{u.name} {u.service ? `(${u.service})` : ''}</option>
+                       ))}
+                    </select>
+                 </div>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                 <button onClick={() => { setIsProxyModalOpen(false); setProxyAction(null); }} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">Annuler</button>
+                 <button 
+                   onClick={confirmProxyUser} 
+                   disabled={!proxyUserId}
+                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                 >
+                   Continuer
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Detail Modal - Significantly Increased Size */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -275,7 +407,7 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                    {renderUserAvatar(selectedItem.userId)}
                    <div>
                       <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                        Détail {selectedItem._type === 'timesheet' ? 'Feuille d\'heures' : 'Demande de Congé'}
+                        Détail {selectedItem._type === 'timesheet' ? (selectedItem.type === 'interim' ? 'Feuille Intérimaire' : 'Feuille d\'heures') : 'Demande de Congé'}
                       </h2>
                       <p className="text-sm text-slate-500">
                         {users.find(u => u.id === selectedItem.userId)?.name}
@@ -289,77 +421,110 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
 
              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {selectedItem._type === 'timesheet' ? (
-                   <div className="space-y-6">
-                      <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                         <span className="text-slate-500 font-medium">Période :</span>
-                         <span className="font-bold text-lg text-blue-600 dark:text-blue-400">
-                           Semaine {getWeekNumber(selectedItem.weekStartDate)} 
-                           <span className="text-slate-800 dark:text-white ml-2 font-normal text-base">
-                             (du {new Date(selectedItem.weekStartDate).toLocaleDateString()})
-                           </span>
-                         </span>
+                   selectedItem.type === 'interim' ? (
+                      // INTERIM VIEW
+                      <div className="space-y-6">
+                         <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800">
+                            <p className="text-sm text-purple-700 dark:text-purple-300 font-bold mb-2">Informations Intérimaire</p>
+                            <p className="text-lg font-medium">Nom : {selectedItem.interimName}</p>
+                            <p className="text-sm text-slate-500">Soumis le : {new Date(selectedItem.submittedAt).toLocaleString()}</p>
+                         </div>
+                         
+                         <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><ImageIcon size={20}/> Documents joints</h3>
+                         <div className="grid gap-4">
+                            {(selectedItem.attachments || []).map((src: string, idx: number) => (
+                               <img key={idx} src={src} alt="Feuille papier" className="w-full rounded-lg shadow-sm border border-slate-200 dark:border-slate-800" />
+                            ))}
+                         </div>
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
-                           <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase text-xs tracking-wider">
-                              <tr>
-                                 <th className="p-3 rounded-tl-lg w-32">Affaire</th>
-                                 <th className="p-3 w-24">Zone</th>
-                                 <th className="p-3 w-48">Chantier</th>
-                                 {modalWeekDays.map((d, i) => (
-                                    <th key={i} className="p-3 text-center border-l border-slate-200 dark:border-slate-700 min-w-[80px]">
-                                       <div className="flex flex-col">
-                                          <span className="text-xs opacity-70">{d.toLocaleDateString('fr-FR', { weekday: 'long' })}</span>
-                                          <span className="text-lg font-bold text-slate-800 dark:text-white">{d.getDate()}</span>
-                                       </div>
-                                    </th>
-                                 ))}
-                                 <th className="p-3 text-right rounded-tr-lg border-l border-slate-200 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 w-24">Total</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                              {(selectedItem as Timesheet).entries.map((entry: any) => (
-                                 <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
-                                    <td className="p-3 font-medium bg-slate-50/50 dark:bg-slate-800/20">{entry.businessId}</td>
-                                    <td className="p-3 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20">{entry.zone}</td>
-                                    <td className="p-3 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20 truncate max-w-[200px]" title={entry.site}>{entry.site}</td>
-                                    {entry.hours.map((h: number, i: number) => (
-                                       <td key={i} className="p-3 text-center border-l border-slate-100 dark:border-slate-800 text-base">
-                                          {h > 0 ? <span className="font-medium">{h}</span> : <span className="text-slate-300 dark:text-slate-700">-</span>}
-                                       </td>
+                   ) : (
+                      // STANDARD VIEW
+                      <div className="space-y-6">
+                          <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-500 font-medium">Période :</span>
+                            <span className="font-bold text-lg text-blue-600 dark:text-blue-400">
+                              Semaine {getWeekNumber(selectedItem.weekStartDate)} 
+                              <span className="text-slate-800 dark:text-white ml-2 font-normal text-base">
+                                (du {new Date(selectedItem.weekStartDate).toLocaleDateString()})
+                              </span>
+                            </span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
+                              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase text-xs tracking-wider">
+                                  <tr>
+                                    <th className="p-3 rounded-tl-lg w-32">Affaire</th>
+                                    <th className="p-3 w-24">Zone</th>
+                                    <th className="p-3 w-48">Chantier</th>
+                                    {modalWeekDays.map((d, i) => (
+                                        <th key={i} className="p-3 text-center border-l border-slate-200 dark:border-slate-700 min-w-[80px]">
+                                          <div className="flex flex-col">
+                                              <span className="text-xs opacity-70">{d.toLocaleDateString('fr-FR', { weekday: 'long' })}</span>
+                                              <span className="text-lg font-bold text-slate-800 dark:text-white">{d.getDate()}</span>
+                                          </div>
+                                        </th>
                                     ))}
-                                    <td className="p-3 text-right font-bold text-blue-600 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 text-lg">
-                                      {entry.hours.reduce((a: number, b: number) => a + b, 0)}
+                                    <th className="p-3 text-right rounded-tr-lg border-l border-slate-200 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 w-24">Total</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                  {(selectedItem as Timesheet).entries.map((entry: any) => (
+                                    <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
+                                        <td className="p-3 font-medium bg-slate-50/50 dark:bg-slate-800/20">{entry.businessId}</td>
+                                        <td className="p-3 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20">{entry.zone}</td>
+                                        <td className="p-3 text-slate-500 bg-slate-50/50 dark:bg-slate-800/20 truncate max-w-[200px]" title={entry.site}>{entry.site}</td>
+                                        {entry.hours.map((h: number, i: number) => (
+                                          <td key={i} className="p-3 text-center border-l border-slate-100 dark:border-slate-800 text-base">
+                                              {h > 0 ? <span className="font-medium">{h}</span> : <span className="text-slate-300 dark:text-slate-700">-</span>}
+                                          </td>
+                                        ))}
+                                        <td className="p-3 text-right font-bold text-blue-600 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 text-lg">
+                                          {entry.hours.reduce((a: number, b: number) => a + b, 0)}
+                                        </td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                              <tfoot className="bg-slate-100 dark:bg-slate-800/30 font-bold border-t-2 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white">
+                                  <tr>
+                                    <td colSpan={3} className="p-3 text-right text-sm uppercase">Totaux Journaliers</td>
+                                    {modalWeekDays.map((_, i) => (
+                                        <td key={i} className="p-3 text-center border-l border-slate-200 dark:border-slate-700">
+                                          {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + (e.hours[i] || 0), 0)}
+                                        </td>
+                                    ))}
+                                    <td className="p-3 text-right text-blue-600 text-xl border-l border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-900/10">
+                                      {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + e.hours.reduce((a,b)=>a+b,0), 0)}
                                     </td>
-                                 </tr>
-                              ))}
-                           </tbody>
-                           <tfoot className="bg-slate-100 dark:bg-slate-800/30 font-bold border-t-2 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white">
-                              <tr>
-                                 <td colSpan={3} className="p-3 text-right text-sm uppercase">Totaux Journaliers</td>
-                                 {modalWeekDays.map((_, i) => (
-                                    <td key={i} className="p-3 text-center border-l border-slate-200 dark:border-slate-700">
-                                       {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + (e.hours[i] || 0), 0)}
-                                    </td>
-                                 ))}
-                                 <td className="p-3 text-right text-blue-600 text-xl border-l border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-900/10">
-                                   {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + e.hours.reduce((a,b)=>a+b,0), 0)}
-                                 </td>
-                              </tr>
-                           </tfoot>
-                        </table>
+                                  </tr>
+                              </tfoot>
+                            </table>
+                          </div>
                       </div>
-                   </div>
+                   )
                 ) : (
+                   // LEAVE VIEW
                    <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-6">
                          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                             <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Type</p>
-                            <p className="font-bold text-lg capitalize">{(selectedItem as LeaveRequest).type}</p>
+                            <p className="font-bold text-lg capitalize">
+                              {(selectedItem as LeaveRequest).type === 'paid' ? 'Congés Payés' :
+                               (selectedItem as LeaveRequest).type === 'rtt' ? 'RTT' :
+                               (selectedItem as LeaveRequest).type === 'rcr' ? 'RCR' :
+                               (selectedItem as LeaveRequest).type === 'sick' ? 'Maladie' : 'Sans solde'}
+                            </p>
                          </div>
                          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                             <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Précision</p>
-                            <p className="font-bold text-lg capitalize">{(selectedItem as LeaveRequest).halfDay === 'none' ? 'Journée entière' : (selectedItem as LeaveRequest).halfDay}</p>
+                            <p className="font-bold text-lg capitalize">
+                                {(selectedItem as LeaveRequest).halfDay === 'none' 
+                                    ? 'Journée entière' 
+                                    : (selectedItem as LeaveRequest).halfDay === 'morning' 
+                                        ? 'Matin seulement' 
+                                        : (selectedItem as LeaveRequest).halfDay === 'afternoon' 
+                                            ? 'Après-midi seulement' 
+                                            : (selectedItem as LeaveRequest).halfDay}
+                            </p>
                          </div>
                          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                             <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Du</p>

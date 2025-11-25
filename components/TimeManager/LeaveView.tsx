@@ -76,6 +76,7 @@ export const LeaveView: React.FC<LeaveViewProps> = ({
                   >
                      <option value="paid">Congés Payés (CP)</option>
                      <option value="rtt">RTT</option>
+                     <option value="rcr">RCR</option>
                      <option value="sick">Maladie / Arrêt</option>
                      <option value="unpaid">Sans solde</option>
                   </select>
@@ -163,13 +164,17 @@ export const LeaveView: React.FC<LeaveViewProps> = ({
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl
                                    ${req.type === 'paid' ? 'bg-blue-100 text-blue-600' : 
                                      req.type === 'rtt' ? 'bg-purple-100 text-purple-600' :
+                                     req.type === 'rcr' ? 'bg-teal-100 text-teal-600' :
                                      req.type === 'sick' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600'}
                                 `}>
                                    <CalendarIcon size={20} />
                                 </div>
                                 <div>
                                    <p className="font-semibold text-slate-800 dark:text-white capitalize">
-                                      {req.type === 'paid' ? 'Congés Payés' : req.type === 'rtt' ? 'RTT' : req.type === 'sick' ? 'Maladie' : 'Sans solde'}
+                                      {req.type === 'paid' ? 'Congés Payés' : 
+                                       req.type === 'rtt' ? 'RTT' : 
+                                       req.type === 'rcr' ? 'RCR' :
+                                       req.type === 'sick' ? 'Maladie' : 'Sans solde'}
                                       {req.halfDay !== 'none' && <span className="text-xs font-normal text-slate-500 ml-2">({req.halfDay === 'morning' ? 'Matin' : 'Après-midi'})</span>}
                                    </p>
                                    <p className="text-sm text-slate-500">

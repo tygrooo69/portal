@@ -69,10 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           
           {/* Header Logo Area */}
           <div className="p-6 flex flex-col gap-6 flex-shrink-0">
-            <div className="flex items-center justify-between h-12">
+            <div className="flex items-center justify-between h-16">
                {logo ? (
-                  <div className="flex-1 flex justify-start overflow-hidden mr-4 h-full items-center">
-                    <img src={logo} alt="Logo" className="h-full w-auto object-contain max-w-full" />
+                  <div className="flex-1 flex justify-start overflow-hidden mr-1 h-full items-center">
+                    <img src={logo} alt="Logo" className="h-full w-full object-contain object-left" />
                   </div>
                ) : (
                  <div className="flex items-center space-x-3 overflow-hidden">

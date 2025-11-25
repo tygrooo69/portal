@@ -64,7 +64,10 @@ async function initDB() {
         avatar TEXT,
         color VARCHAR(50),
         role VARCHAR(20) DEFAULT 'user',
-        service VARCHAR(100)
+        service VARCHAR(100),
+        employeeCode VARCHAR(50),
+        jobTitle VARCHAR(100),
+        secteur VARCHAR(100)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -129,7 +132,7 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Timesheets Table (Updated with managerId and isProcessed)
+    // Timesheets Table (Updated with managerId, isProcessed, type, interimName, attachments)
     await conn.query(`
       CREATE TABLE IF NOT EXISTS timesheets (
         id VARCHAR(255) PRIMARY KEY,
@@ -141,6 +144,9 @@ async function initDB() {
         rejectionReason TEXT,
         submittedAt VARCHAR(50),
         isProcessed BOOLEAN DEFAULT FALSE,
+        type VARCHAR(20) DEFAULT 'standard',
+        interimName VARCHAR(255),
+        attachments LONGTEXT,
         INDEX idx_user_week (userId, weekStartDate),
         INDEX idx_manager (managerId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -268,7 +274,8 @@ app.get('/api/data', async (req, res) => {
       const timesheets = timesheetsRows.map(t => ({
         ...t,
         entries: t.entries ? JSON.parse(t.entries) : [],
-        isProcessed: Boolean(t.isProcessed)
+        isProcessed: Boolean(t.isProcessed),
+        attachments: t.attachments ? JSON.parse(t.attachments) : []
       }));
 
       const leaveRequests = leaveRequestsRows.map(l => ({
@@ -354,8 +361,11 @@ app.post('/api/data', async (req, res) => {
       // Users
       await conn.query('DELETE FROM users');
       if (users && users.length > 0) {
-        const userValues = users.map(u => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color, u.role || 'user', u.service || '']);
-        await conn.query('INSERT INTO users (id, name, email, password, avatar, color, role, service) VALUES ?', [userValues]);
+        const userValues = users.map(u => [
+          u.id, u.name, u.email, u.password || '', u.avatar || '', u.color, u.role || 'user', u.service || '', 
+          u.employeeCode || '', u.jobTitle || '', u.secteur || ''
+        ]);
+        await conn.query('INSERT INTO users (id, name, email, password, avatar, color, role, service, employeeCode, jobTitle, secteur) VALUES ?', [userValues]);
       }
 
       // Comments
@@ -376,9 +386,20 @@ app.post('/api/data', async (req, res) => {
       await conn.query('DELETE FROM timesheets');
       if (timesheets && timesheets.length > 0) {
         const tsValues = timesheets.map(t => [
-          t.id, t.userId, t.managerId || null, t.weekStartDate, t.status, JSON.stringify(t.entries || []), t.rejectionReason || '', t.submittedAt || null, t.isProcessed || false
+          t.id, 
+          t.userId, 
+          t.managerId || null, 
+          t.weekStartDate, 
+          t.status, 
+          JSON.stringify(t.entries || []), 
+          t.rejectionReason || '', 
+          t.submittedAt || null, 
+          t.isProcessed || false,
+          t.type || 'standard',
+          t.interimName || null,
+          JSON.stringify(t.attachments || [])
         ]);
-        await conn.query('INSERT INTO timesheets (id, userId, managerId, weekStartDate, status, entries, rejectionReason, submittedAt, isProcessed) VALUES ?', [tsValues]);
+        await conn.query('INSERT INTO timesheets (id, userId, managerId, weekStartDate, status, entries, rejectionReason, submittedAt, isProcessed, type, interimName, attachments) VALUES ?', [tsValues]);
       }
 
       // Leave Requests

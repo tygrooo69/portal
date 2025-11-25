@@ -557,6 +557,7 @@ const App: React.FC = () => {
             onSaveTimesheet={handleSaveTimesheet}
             onAddLeaveRequest={handleAddLeaveRequest}
             onUpdateLeaveRequest={handleUpdateLeaveRequest}
+            onLoginClick={() => setIsLoginModalOpen(true)}
           />
         );
       case 'ai-chat':

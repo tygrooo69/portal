@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder } from 'lucide-react';
+import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder, Briefcase, Activity } from 'lucide-react';
 import { Project, Task, User, Comment } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
@@ -46,7 +46,11 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 }) => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialActiveProjectId);
   const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list'>('board');
+  
+  // Filters
   const [filterUserId, setFilterUserId] = useState<string>('all');
+  const [filterService, setFilterService] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   
   // Modals State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -90,10 +94,38 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   }, [initialEditingTaskId, tasks]);
 
   // --- FILTER LOGIC ---
+  
+  // Get unique services from users
+  const uniqueServices = useMemo(() => {
+    return Array.from(new Set(users.map(u => u.service).filter(Boolean))).sort();
+  }, [users]);
+
   const filteredProjects = useMemo(() => {
-    if (filterUserId === 'all') return projects;
-    return projects.filter(p => p.members && p.members.includes(filterUserId));
-  }, [projects, filterUserId]);
+    let result = projects;
+
+    // Filter by Member
+    if (filterUserId !== 'all') {
+      result = result.filter(p => p.members && p.members.includes(filterUserId));
+    }
+
+    // Filter by Service (Show project if ANY member belongs to the selected service)
+    if (filterService !== 'all') {
+      result = result.filter(p => {
+        if (!p.members || p.members.length === 0) return false;
+        return p.members.some(memberId => {
+          const member = users.find(u => u.id === memberId);
+          return member?.service === filterService;
+        });
+      });
+    }
+
+    // Filter by Status
+    if (filterStatus !== 'all') {
+      result = result.filter(p => (p.status || 'active') === filterStatus);
+    }
+
+    return result;
+  }, [projects, filterUserId, filterService, filterStatus, users]);
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const projectTasks = activeProjectId ? tasks.filter(t => t.projectId === activeProjectId) : [];
@@ -325,20 +357,54 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                   <LayoutGrid className="text-slate-400" /> Vue d'ensemble
                </h1>
-               <div className="flex items-center gap-2 mt-1">
+               <div className="flex items-center gap-4 mt-2 flex-wrap">
                  <p className="text-slate-500 text-sm">{filteredProjects.length} projets</p>
-                 <div className="flex items-center gap-1.5 ml-4 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <Filter size={12} className="text-slate-400" />
-                    <select 
-                      value={filterUserId} 
-                      onChange={(e) => setFilterUserId(e.target.value)}
-                      className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0"
-                    >
-                      <option value="all" className="bg-white dark:bg-slate-800">Tous les utilisateurs</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id} className="bg-white dark:bg-slate-800">{u.name}</option>
-                      ))}
-                    </select>
+                 
+                 <div className="flex items-center gap-2">
+                    {/* Filter User */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <Filter size={12} className="text-slate-400" />
+                        <select 
+                          value={filterUserId} 
+                          onChange={(e) => setFilterUserId(e.target.value)}
+                          className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
+                        >
+                          <option value="all" className="bg-white dark:bg-slate-800">Utilisateurs: Tous</option>
+                          {users.map(u => (
+                            <option key={u.id} value={u.id} className="bg-white dark:bg-slate-800">{u.name}</option>
+                          ))}
+                        </select>
+                    </div>
+
+                    {/* Filter Service */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <Briefcase size={12} className="text-slate-400" />
+                        <select 
+                          value={filterService} 
+                          onChange={(e) => setFilterService(e.target.value)}
+                          className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
+                        >
+                          <option value="all" className="bg-white dark:bg-slate-800">Services: Tous</option>
+                          {uniqueServices.map(s => (
+                            <option key={s} value={s} className="bg-white dark:bg-slate-800">{s}</option>
+                          ))}
+                        </select>
+                    </div>
+
+                    {/* Filter Status (New) */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <Activity size={12} className="text-slate-400" />
+                        <select 
+                          value={filterStatus} 
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
+                        >
+                          <option value="all" className="bg-white dark:bg-slate-800">Statut: Tous</option>
+                          <option value="active" className="bg-white dark:bg-slate-800">Actifs</option>
+                          <option value="on-hold" className="bg-white dark:bg-slate-800">En pause</option>
+                          <option value="completed" className="bg-white dark:bg-slate-800">Terminés</option>
+                        </select>
+                    </div>
                  </div>
                </div>
              </div>

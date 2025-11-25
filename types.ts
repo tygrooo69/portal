@@ -28,6 +28,10 @@ export interface User {
   // New fields for hierarchical management
   role: 'admin' | 'assistant' | 'user';
   service?: string; // e.g., "Maçonnerie", "Electricité", "Administratif"
+  // Adibat fields
+  employeeCode?: string;
+  jobTitle?: string;
+  secteur?: string;
 }
 
 export interface Project {
@@ -110,13 +114,18 @@ export interface Timesheet {
   rejectionReason?: string;
   submittedAt?: string;
   isProcessed?: boolean; // Traité par l'assistante
+  
+  // Interim Fields
+  type?: 'standard' | 'interim';
+  interimName?: string;
+  attachments?: string[]; // Base64 images
 }
 
 export interface LeaveRequest {
   id: string;
   userId: string;
   managerId?: string; // ID du responsable sélectionné
-  type: 'paid' | 'rtt' | 'sick' | 'unpaid';
+  type: 'paid' | 'rtt' | 'sick' | 'unpaid' | 'rcr';
   startDate: string;
   endDate: string;
   halfDay?: 'morning' | 'afternoon' | 'none';
