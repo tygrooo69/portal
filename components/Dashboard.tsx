@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft } from 'lucide-react';
-import { AppItem, DocumentItem } from '../types';
+import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle } from 'lucide-react';
+import { AppItem, DocumentItem, Project } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
 interface DashboardProps {
   apps: AppItem[];
   documents: DocumentItem[];
+  projects?: Project[];
+  onProjectClick?: (projectId: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ apps, documents, projects = [], onProjectClick }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -61,6 +63,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
       case 'md':
       case 'txt': return <FileText className="text-blue-500" />;
       default: return <FileCode className="text-slate-500" />;
+    }
+  };
+
+  // Helper pour calculer les jours restants
+  const getDaysRemaining = (endDateStr?: string) => {
+    if (!endDateStr) return null;
+    const end = new Date(endDateStr);
+    const now = new Date();
+    // Reset hours for simpler day calc
+    end.setHours(0,0,0,0);
+    now.setHours(0,0,0,0);
+    
+    const diffTime = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const getDaysRemainingBadge = (days: number) => {
+    if (days < 0) {
+      return <span className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle size={10}/> En retard ({Math.abs(days)}j)</span>;
+    } else if (days === 0) {
+      return <span className="text-xs font-bold text-orange-600 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">Aujourd'hui</span>;
+    } else if (days <= 7) {
+      return <span className="text-xs font-medium text-orange-600 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">{days} jours restants</span>;
+    } else {
+      return <span className="text-xs font-medium text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">{days} jours restants</span>;
     }
   };
 
@@ -208,6 +236,82 @@ export const Dashboard: React.FC<DashboardProps> = ({ apps, documents }) => {
              </div>
              {/* Decoration */}
              <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+          </div>
+
+          {/* Project Status Summary Widget */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-0 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+               <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                 <Briefcase size={18} />
+               </div>
+               <h3 className="font-semibold text-slate-800 dark:text-white">Suivi des Projets</h3>
+             </div>
+             
+             {projects.length === 0 ? (
+               <div className="p-6 text-center text-sm text-slate-400">
+                 Aucun projet actif.
+               </div>
+             ) : (
+               <div className="overflow-x-auto">
+                 <table className="w-full text-sm text-left">
+                   <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400">
+                     <tr>
+                       <th className="px-5 py-3 font-medium">Nom</th>
+                       <th className="px-5 py-3 font-medium">Échéance</th>
+                       <th className="px-5 py-3 font-medium text-right">Priorité</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                     {projects.slice(0, 5).map(proj => {
+                       const daysRemaining = getDaysRemaining(proj.endDate);
+                       return (
+                        <tr 
+                          key={proj.id} 
+                          onClick={() => onProjectClick && onProjectClick(proj.id)}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
+                        >
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${proj.color}`} />
+                              <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[120px] group-hover:text-blue-600 transition-colors">{proj.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                              {proj.endDate ? (
+                                <div className="flex flex-col gap-1">
+                                  <span className="flex items-center gap-1.5">
+                                    <Calendar size={12} />
+                                    {new Date(proj.endDate).toLocaleDateString(undefined, {month:'numeric', day:'numeric'})}
+                                  </span>
+                                  {daysRemaining !== null && getDaysRemainingBadge(daysRemaining)}
+                                </div>
+                              ) : '-'}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            {proj.priority ? (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                proj.priority === 'high' 
+                                  ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-800' 
+                                  : proj.priority === 'medium'
+                                    ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800'
+                                    : 'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:text-slate-400'
+                              }`}>
+                                {proj.priority === 'high' ? 'Haute' : proj.priority === 'medium' ? 'Moy.' : 'Basse'}
+                              </span>
+                            ) : <span className="text-slate-300">-</span>}
+                          </td>
+                        </tr>
+                       );
+                     })}
+                   </tbody>
+                 </table>
+                 {projects.length > 5 && (
+                    <div className="px-5 py-3 text-center border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-xs text-slate-400">Et {projects.length - 5} autres...</span>
+                    </div>
+                 )}
+               </div>
+             )}
           </div>
           
         </div>

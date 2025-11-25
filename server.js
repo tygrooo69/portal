@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Charge les variables du fichier .env
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -14,19 +15,25 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'storage.json');
 
 // --- NocoDB Configuration ---
-const NOCODB_URL = process.env.NOCODB_URL; // ex: http://192.168.1.50:8080
+const NOCODB_URL = process.env.NOCODB_URL; // ex: http://localhost:8080
 const NOCODB_TOKEN = process.env.NOCODB_TOKEN; // API Token (xc-token)
-const NOCODB_TABLE_ID = process.env.NOCODB_TABLE_ID; // Table ID
 
-// Check if NocoDB is configured
-const useNocoDB = !!(NOCODB_URL && NOCODB_TOKEN && NOCODB_TABLE_ID);
+// Table IDs / Names from Environment Variables
+const TABLE_PROJECTS = process.env.NOCO_TABLE_PROJECTS;
+const TABLE_TASKS = process.env.NOCO_TABLE_TASKS;
+const TABLE_APPS = process.env.NOCO_TABLE_APPS;
+const TABLE_DOCS = process.env.NOCO_TABLE_DOCS;
+const TABLE_SETTINGS = process.env.NOCO_TABLE_SETTINGS;
+
+// Check if NocoDB is fully configured
+const useNocoDB = !!(NOCODB_URL && NOCODB_TOKEN && TABLE_PROJECTS && TABLE_TASKS && TABLE_APPS && TABLE_DOCS && TABLE_SETTINGS);
 
 if (useNocoDB) {
-  console.log(`🔌 Mode NocoDB activé sur ${NOCODB_URL}`);
-  console.log(`   Table: ${NOCODB_TABLE_ID}`);
+  console.log(`🔌 Mode NocoDB Multi-Tables activé sur ${NOCODB_URL}`);
+  console.log(`   Tables: Projets(${TABLE_PROJECTS}), Tâches(${TABLE_TASKS}), Apps(${TABLE_APPS}), Docs(${TABLE_DOCS}), Settings(${TABLE_SETTINGS})`);
 } else {
   console.log("📂 Mode Fichier Local activé (storage.json)");
-  // Ensure data directory exists only if using local file
+  console.log("   Pour activer NocoDB, créez un fichier .env avec NOCODB_URL, NOCODB_TOKEN et les IDs des tables.");
   (async () => {
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -41,24 +48,27 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
-// Serve static files from the React build
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// --- Helper Functions for Storage Strategy ---
+// --- Helper Functions ---
 
 const getDefaultData = () => ({ 
   apps: [], 
   documents: [], 
+  projects: [],
+  tasks: [],
   apiKey: "", 
   adminPassword: "admin" 
 });
 
-// Helper to get the first available record ID from NocoDB
-// This prevents ID collision errors by not hardcoding ID=1
-const getNocoDBRowId = async () => {
+// Generic NocoDB Fetch
+const nocoFetch = async (tableId, query = {}) => {
   try {
-    const listUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records?limit=1`;
-    const response = await fetch(listUrl, {
+    const url = new URL(`${NOCODB_URL}/api/v2/tables/${tableId}/records`);
+    url.searchParams.append('limit', '1000'); // Fetch max 1000 records
+    url.searchParams.append('offset', '0');
+    
+    const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
         'xc-token': NOCODB_TOKEN,
@@ -66,180 +76,202 @@ const getNocoDBRowId = async () => {
       }
     });
 
-    if (!response.ok) return null;
-    
+    if (!response.ok) throw new Error(`Fetch Error ${response.status}`);
     const json = await response.json();
-    const list = json.list || [];
-    
-    if (list.length > 0) {
-      return list[0].Id; // Return the actual ID of the first row
-    }
-    return null; // No rows exist
+    return json.list || [];
   } catch (e) {
-    console.error("Error finding row ID:", e.message);
-    return null;
+    console.error(`Error fetching table ${tableId}:`, e.message);
+    return [];
   }
 };
 
-// Strategy: Load Data
-const loadData = async () => {
+// Generic NocoDB Sync Logic (Create/Update/Delete)
+// We use the 'id' field from frontend as the reference
+const syncTable = async (tableId, incomingItems) => {
+  // 1. Fetch existing
+  const existingRecords = await nocoFetch(tableId);
+  
+  // Map internal NocoDB ID (Id) to our Frontend ID (id)
+  // existingRecords have { Id: 1, id: "frontend-guid", ... }
+  const existingMap = new Map();
+  existingRecords.forEach(r => {
+    if (r.id) existingMap.set(r.id, r.Id); // Map frontend ID -> NocoDB Row ID
+  });
+
+  const incomingIds = new Set(incomingItems.map(i => i.id));
+  
+  // 2. Identify Actions
+  const toCreate = [];
+  const toUpdate = [];
+  const toDelete = [];
+
+  // Find Creates and Updates
+  for (const item of incomingItems) {
+    if (existingMap.has(item.id)) {
+      // It exists, update it. We attach the NocoDB Row ID ('Id') for the API
+      toUpdate.push({ ...item, Id: existingMap.get(item.id) });
+    } else {
+      toCreate.push(item);
+    }
+  }
+
+  // Find Deletes
+  existingRecords.forEach(r => {
+    if (r.id && !incomingIds.has(r.id)) {
+      toDelete.push({ Id: r.Id });
+    }
+  });
+
+  // 3. Execute Actions (Batch if possible)
+  const baseUrl = `${NOCODB_URL}/api/v2/tables/${tableId}/records`;
+  const headers = { 'xc-token': NOCODB_TOKEN, 'Content-Type': 'application/json' };
+
+  const operations = [];
+
+  if (toCreate.length > 0) {
+    // Chunking creates (NocoDB limit usually 25-100)
+    const chunkSize = 50;
+    for (let i = 0; i < toCreate.length; i += chunkSize) {
+        operations.push(fetch(baseUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(toCreate.slice(i, i + chunkSize))
+        }));
+    }
+  }
+
+  if (toUpdate.length > 0) {
+    const chunkSize = 50;
+    for (let i = 0; i < toUpdate.length; i += chunkSize) {
+        operations.push(fetch(baseUrl, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(toUpdate.slice(i, i + chunkSize))
+        }));
+    }
+  }
+
+  if (toDelete.length > 0) {
+    const chunkSize = 50;
+    for (let i = 0; i < toDelete.length; i += chunkSize) {
+        operations.push(fetch(baseUrl, {
+            method: 'DELETE',
+            headers,
+            body: JSON.stringify(toDelete.slice(i, i + chunkSize))
+        }));
+    }
+  }
+
+  await Promise.all(operations);
+  console.log(`[SYNC] ${tableId} -> Created: ${toCreate.length}, Updated: ${toUpdate.length}, Deleted: ${toDelete.length}`);
+};
+
+// Special Handler for Settings (Single Row)
+const syncSettings = async (settingsData) => {
+    const records = await nocoFetch(TABLE_SETTINGS);
+    const baseUrl = `${NOCODB_URL}/api/v2/tables/${TABLE_SETTINGS}/records`;
+    const headers = { 'xc-token': NOCODB_TOKEN, 'Content-Type': 'application/json' };
+
+    if (records.length > 0) {
+        // Update first row
+        await fetch(baseUrl, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ Id: records[0].Id, ...settingsData })
+        });
+    } else {
+        // Create
+        await fetch(baseUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(settingsData)
+        });
+    }
+};
+
+// --- Main Routes ---
+
+app.get('/api/data', async (req, res) => {
   if (useNocoDB) {
     try {
-      // 1. Get the dynamic Row ID
-      const rowId = await getNocoDBRowId();
+      const [apps, documents, projects, tasks, settingsList] = await Promise.all([
+        nocoFetch(TABLE_APPS),
+        nocoFetch(TABLE_DOCS),
+        nocoFetch(TABLE_PROJECTS),
+        nocoFetch(TABLE_TASKS),
+        nocoFetch(TABLE_SETTINGS)
+      ]);
 
-      if (!rowId) {
-        console.warn(`[READ] No records found in NocoDB table. Returning default data.`);
-        return getDefaultData();
-      }
+      const settings = settingsList[0] || {};
 
-      // 2. Fetch that specific row
-      const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records/${rowId}`;
-      console.log(`[READ] Fetching NocoDB Record: ${rowId}`);
-      
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'xc-token': NOCODB_TOKEN,
-          'Content-Type': 'application/json'
-        }
+      res.json({
+        apps,
+        documents,
+        projects,
+        tasks,
+        apiKey: settings.apiKey || "",
+        adminPassword: settings.adminPassword || "admin"
       });
-      
-      if (!response.ok) throw new Error(`NocoDB API Error (${response.status})`);
-
-      const json = await response.json();
-      
-      // Try 'Data' (Case Sensitive usually) then 'data'
-      const payload = json.Data || json.data;
-
-      if (!payload) return getDefaultData();
-      
-      return typeof payload === 'string' ? JSON.parse(payload) : payload;
-
     } catch (error) {
-      console.error("[READ] Failed to load from NocoDB:", error.message);
-      return getDefaultData();
+      console.error("NocoDB Read Error:", error);
+      res.json(getDefaultData());
     }
   } else {
-    // Local File Strategy
     try {
       const data = await fs.readFile(DATA_FILE, 'utf8');
-      return JSON.parse(data);
+      res.json(JSON.parse(data));
     } catch (error) {
-      if (error.code === 'ENOENT') {
-        return getDefaultData();
-      }
-      throw error;
+      res.json(getDefaultData());
     }
   }
-};
+});
 
-// Strategy: Save Data
-const saveData = async (dataToSave) => {
+app.post('/api/data', async (req, res) => {
+  const { apps, documents, projects, tasks, apiKey, adminPassword } = req.body;
+
   if (useNocoDB) {
     try {
-      // Structure for NocoDB
-      const body = {
-        Data: JSON.stringify(dataToSave) // Ensure we send stringified JSON if column is LongText/JSON
-      };
-
-      // 1. Find existing row
-      const rowId = await getNocoDBRowId();
+      // Execute syncs in parallel
+      await Promise.all([
+        syncTable(TABLE_APPS, apps || []),
+        syncTable(TABLE_DOCS, documents || []), // Note: Heavy if docs are huge
+        syncTable(TABLE_PROJECTS, projects || []),
+        syncTable(TABLE_TASKS, tasks || []),
+        syncSettings({ apiKey, adminPassword })
+      ]);
       
-      let response;
-
-      if (rowId) {
-        // UPDATE existing row
-        // FIX: Remove ID from URL for PATCH, put in body instead
-        const targetUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records`;
-        console.log(`[WRITE] Updating NocoDB Record: ${rowId}`);
-        
-        // Add ID to body to identify the record
-        const updateBody = {
-            Id: rowId,
-            ...body
-        };
-
-        response = await fetch(targetUrl, {
-          method: 'PATCH',
-          headers: {
-            'xc-token': NOCODB_TOKEN,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updateBody)
-        });
-      } else {
-        // CREATE new row (Let NocoDB decide ID)
-        console.log(`[WRITE] Creating NEW NocoDB Record...`);
-        const createUrl = `${NOCODB_URL}/api/v2/tables/${NOCODB_TABLE_ID}/records`;
-        
-        response = await fetch(createUrl, {
-            method: 'POST',
-            headers: {
-              'xc-token': NOCODB_TOKEN,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-      }
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[WRITE] NocoDB Save Failed (${response.status}): ${errText}`);
-        throw new Error(`NocoDB Save Failed: ${response.status}`);
-      }
-
-      console.log("[WRITE] Successfully saved to NocoDB");
-      return true;
+      res.json({ success: true });
     } catch (error) {
-      console.error("[WRITE] Failed to save to NocoDB:", error.message);
-      throw error;
+      console.error("NocoDB Save Error:", error);
+      res.status(500).json({ error: 'Database sync failed' });
     }
   } else {
     // Local File Strategy
-    await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
-    console.log("[WRITE] Saved to local file storage.json");
-    return true;
-  }
-};
+    try {
+      let existingData = {};
+      try {
+        const fileContent = await fs.readFile(DATA_FILE, 'utf8');
+        existingData = JSON.parse(fileContent);
+      } catch (e) { /* ignore */ }
 
-// --- Routes ---
+      const dataToSave = {
+        apps: apps || existingData.apps || [],
+        documents: documents || existingData.documents || [],
+        projects: projects || existingData.projects || [],
+        tasks: tasks || existingData.tasks || [],
+        apiKey: apiKey !== undefined ? apiKey : (existingData.apiKey || ""),
+        adminPassword: adminPassword !== undefined ? adminPassword : (existingData.adminPassword || "admin")
+      };
 
-// API: Get Data
-app.get('/api/data', async (req, res) => {
-  try {
-    const data = await loadData();
-    res.json(data);
-  } catch (error) {
-    console.error("Route Read error:", error);
-    res.json({ apps: [], documents: [], apiKey: "", adminPassword: "admin" });
-  }
-});
-
-// API: Save Data
-app.post('/api/data', async (req, res) => {
-  try {
-    const { apps, documents, apiKey, adminPassword } = req.body;
-    
-    // Load existing to merge
-    let existingData = await loadData();
-
-    const dataToSave = {
-      apps: apps || existingData.apps || [],
-      documents: documents || existingData.documents || [],
-      apiKey: apiKey !== undefined ? apiKey : (existingData.apiKey || ""),
-      adminPassword: adminPassword !== undefined ? adminPassword : (existingData.adminPassword || "admin")
-    };
-
-    await saveData(dataToSave);
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Route Save error:", error);
-    res.status(500).json({ error: 'Failed to save data' });
+      await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Local Save Error:", error);
+      res.status(500).json({ error: 'Failed to save data locally' });
+    }
   }
 });
 
-// Handle React Routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });

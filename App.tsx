@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -5,7 +6,8 @@ import { AIAssistant } from './components/AIAssistant';
 import { AdminApps } from './components/AdminApps';
 import { AdminDocuments } from './components/AdminDocuments';
 import { Settings } from './components/Settings';
-import { ViewMode, AppItem, DocumentItem } from './types';
+import { ProjectManager } from './components/ProjectManager/index';
+import { ViewMode, AppItem, DocumentItem, Project, Task } from './types';
 import { Moon, Sun } from 'lucide-react';
 import { api } from './services/api';
 
@@ -24,6 +26,12 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [apps, setApps] = useState<AppItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  
+  // New State for Projects
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [targetProjectId, setTargetProjectId] = useState<string | null>(null);
+
   const [isLoaded, setIsLoaded] = useState(false);
   
   // Initialize with empty string, will be populated by server or localStorage
@@ -39,33 +47,35 @@ const App: React.FC = () => {
       if (serverData) {
         setApps(serverData.apps.length > 0 ? serverData.apps : DEFAULT_APPS);
         setDocuments(serverData.documents);
-        // Load API key from server if available
-        if (serverData.apiKey) {
-          setApiKey(serverData.apiKey);
-        }
-        if (serverData.adminPassword) {
-          setAdminPassword(serverData.adminPassword);
-        }
+        
+        // Load Projects & Tasks
+        if (serverData.projects) setProjects(serverData.projects);
+        if (serverData.tasks) setTasks(serverData.tasks);
+
+        if (serverData.apiKey) setApiKey(serverData.apiKey);
+        if (serverData.adminPassword) setAdminPassword(serverData.adminPassword);
       } else {
         // 2. Fallback to LocalStorage (Client)
         const savedApps = localStorage.getItem('lumina_apps');
         if (savedApps) {
-          try {
-            setApps(JSON.parse(savedApps));
-          } catch (e) {
-            setApps(DEFAULT_APPS);
-          }
+          try { setApps(JSON.parse(savedApps)); } catch (e) { setApps(DEFAULT_APPS); }
         } else {
           setApps(DEFAULT_APPS);
         }
 
         const savedDocs = localStorage.getItem('lumina_documents');
         if (savedDocs) {
-          try {
-            setDocuments(JSON.parse(savedDocs));
-          } catch (e) {
-            console.error(e);
-          }
+          try { setDocuments(JSON.parse(savedDocs)); } catch (e) { console.error(e); }
+        }
+
+        const savedProjects = localStorage.getItem('lumina_projects');
+        if (savedProjects) {
+          try { setProjects(JSON.parse(savedProjects)); } catch (e) { console.error(e); }
+        }
+
+        const savedTasks = localStorage.getItem('lumina_tasks');
+        if (savedTasks) {
+          try { setTasks(JSON.parse(savedTasks)); } catch (e) { console.error(e); }
         }
         
         const savedKey = localStorage.getItem('lumina_api_key');
@@ -92,25 +102,36 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   // Unified Save Function
-  // Accepts optional newKey or newPassword to ensure update
-  const persistData = async (newApps: AppItem[], newDocs: DocumentItem[], newKey?: string, newPwd?: string) => {
+  const persistData = async (
+    newApps: AppItem[], 
+    newDocs: DocumentItem[], 
+    newProjects: Project[],
+    newTasks: Task[],
+    newKey?: string, 
+    newPwd?: string
+  ) => {
     const keyToSave = newKey !== undefined ? newKey : apiKey;
     const pwdToSave = newPwd !== undefined ? newPwd : adminPassword;
 
     // Update UI immediately
     setApps(newApps);
     setDocuments(newDocs);
+    setProjects(newProjects);
+    setTasks(newTasks);
+
     if (newKey !== undefined) setApiKey(newKey);
     if (newPwd !== undefined) setAdminPassword(newPwd);
 
-    // Try Save to Server (storage.json)
-    const serverSaved = await api.saveData(newApps, newDocs, keyToSave, pwdToSave);
+    // Try Save to Server
+    const serverSaved = await api.saveData(newApps, newDocs, newProjects, newTasks, keyToSave, pwdToSave);
     
     if (!serverSaved) {
       // Fallback: Save to LocalStorage
       try {
         localStorage.setItem('lumina_apps', JSON.stringify(newApps));
         localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
+        localStorage.setItem('lumina_projects', JSON.stringify(newProjects));
+        localStorage.setItem('lumina_tasks', JSON.stringify(newTasks));
         if (newKey !== undefined) localStorage.setItem('lumina_api_key', newKey);
       } catch (e) {
         console.warn("LocalStorage quota exceeded or error", e);
@@ -119,32 +140,67 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    persistData(apps, documents, key, undefined);
+    persistData(apps, documents, projects, tasks, key, undefined);
   };
 
   const handleSaveAdminPassword = (password: string) => {
-    persistData(apps, documents, undefined, password);
+    persistData(apps, documents, projects, tasks, undefined, password);
   };
 
   const handleAddApp = (app: AppItem) => {
-    persistData([...apps, app], documents);
+    persistData([...apps, app], documents, projects, tasks);
   };
 
   const handleUpdateApp = (updatedApp: AppItem) => {
-    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents);
+    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks);
   };
 
   const handleDeleteApp = (id: string) => {
-    persistData(apps.filter(a => a.id !== id), documents);
+    persistData(apps.filter(a => a.id !== id), documents, projects, tasks);
   };
 
   const handleAddDocuments = (newDocs: DocumentItem[]) => {
-    // Merge new documents with existing ones
-    persistData(apps, [...documents, ...newDocs]);
+    persistData(apps, [...documents, ...newDocs], projects, tasks);
   };
 
   const handleDeleteDocument = (id: string) => {
-    persistData(apps, documents.filter(d => d.id !== id));
+    persistData(apps, documents.filter(d => d.id !== id), projects, tasks);
+  };
+
+  // --- Project Handlers ---
+  const handleAddProject = (project: Project) => {
+    persistData(apps, documents, [...projects, project], tasks);
+  };
+
+  const handleUpdateProject = (updatedProject: Project) => {
+    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks);
+  };
+
+  const handleDeleteProject = (id: string) => {
+    // Also delete tasks associated with this project
+    persistData(
+      apps, 
+      documents, 
+      projects.filter(p => p.id !== id), 
+      tasks.filter(t => t.projectId !== id)
+    );
+  };
+
+  const handleAddTask = (task: Task) => {
+    persistData(apps, documents, projects, [...tasks, task]);
+  };
+
+  const handleUpdateTask = (updatedTask: Task) => {
+    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+  };
+
+  const handleDeleteTask = (id: string) => {
+    persistData(apps, documents, projects, tasks.filter(t => t.id !== id));
+  };
+
+  const handleProjectClickFromDashboard = (projectId: string) => {
+    setTargetProjectId(projectId);
+    setView('projects');
   };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
@@ -154,7 +210,21 @@ const App: React.FC = () => {
 
     switch (view) {
       case 'dashboard':
-        return <Dashboard apps={apps} documents={documents} />;
+        return <Dashboard apps={apps} documents={documents} projects={projects} onProjectClick={handleProjectClickFromDashboard} />;
+      case 'projects':
+        return (
+          <ProjectManager 
+             projects={projects}
+             tasks={tasks}
+             initialActiveProjectId={targetProjectId}
+             onAddProject={handleAddProject}
+             onUpdateProject={handleUpdateProject}
+             onDeleteProject={handleDeleteProject}
+             onAddTask={handleAddTask}
+             onUpdateTask={handleUpdateTask}
+             onDeleteTask={handleDeleteTask}
+          />
+        );
       case 'ai-chat':
         return (
           <div className="p-6 md:p-8 h-full max-w-5xl mx-auto">
@@ -175,7 +245,7 @@ const App: React.FC = () => {
         return (
           <AdminDocuments 
             documents={documents}
-            onAddDocuments={handleAddDocuments} // Use plural handler
+            onAddDocuments={handleAddDocuments}
             onDeleteDocument={handleDeleteDocument}
             onBack={() => setView('settings')}
           />
@@ -193,7 +263,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard apps={apps} documents={documents} />;
+        return <Dashboard apps={apps} documents={documents} projects={projects} />;
     }
   };
 
@@ -201,13 +271,13 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans transition-colors duration-300">
       <Sidebar 
         currentView={view} 
-        onNavigate={setView} 
+        onNavigate={(v) => { setView(v); setTargetProjectId(null); }} 
         isCollapsed={isSidebarCollapsed}
         toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
       
       <main className="flex-1 h-full overflow-hidden flex flex-col relative">
-        {/* Theme Toggle (Floating) - Visible only on Dashboard/Chat to keep Settings clean */}
+        {/* Theme Toggle - Visible on most screens except admin/settings */}
         {view !== 'settings' && view !== 'admin-apps' && view !== 'admin-docs' && (
           <div className="absolute top-6 right-6 z-40 hidden md:block">
             <button 

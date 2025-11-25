@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Settings, MessageSquare, Menu } from 'lucide-react';
+import { LayoutDashboard, Settings, MessageSquare, Menu, Briefcase } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, toggleCollapse }) => {
   const navItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+    { id: 'projects', label: 'Projets & Tâches', icon: Briefcase },
     { id: 'ai-chat', label: 'Assistant Lumina', icon: MessageSquare },
     { id: 'settings', label: 'Paramètres', icon: Settings },
   ];

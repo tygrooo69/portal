@@ -18,6 +18,29 @@ export interface DocumentItem {
   uploadDate: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  createdAt: string;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'active' | 'completed' | 'on-hold';
+}
+
+export interface Task {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string;
+  status: 'todo' | 'in-progress' | 'done';
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  priority: 'low' | 'medium' | 'high';
+}
+
 export interface User {
   name: string;
   email: string;
@@ -32,4 +55,4 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
-export type ViewMode = 'dashboard' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs';
+export type ViewMode = 'dashboard' | 'projects' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs';
