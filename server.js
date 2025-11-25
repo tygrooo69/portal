@@ -1,4 +1,4 @@
-import 'dotenv/config'; // Charge les variables du fichier .env
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -15,8 +15,8 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'storage.json');
 
 // --- NocoDB Configuration ---
-const NOCODB_URL = process.env.NOCODB_URL; // ex: http://localhost:8080
-const NOCODB_TOKEN = process.env.NOCODB_TOKEN; // API Token (xc-token)
+const NOCODB_URL = process.env.NOCODB_URL;
+const NOCODB_TOKEN = process.env.NOCODB_TOKEN;
 
 // Table IDs / Names from Environment Variables
 const TABLE_PROJECTS = process.env.NOCO_TABLE_PROJECTS;
@@ -25,15 +25,13 @@ const TABLE_APPS = process.env.NOCO_TABLE_APPS;
 const TABLE_DOCS = process.env.NOCO_TABLE_DOCS;
 const TABLE_SETTINGS = process.env.NOCO_TABLE_SETTINGS;
 
-// Check if NocoDB is fully configured
 const useNocoDB = !!(NOCODB_URL && NOCODB_TOKEN && TABLE_PROJECTS && TABLE_TASKS && TABLE_APPS && TABLE_DOCS && TABLE_SETTINGS);
 
 if (useNocoDB) {
   console.log(`🔌 Mode NocoDB Multi-Tables activé sur ${NOCODB_URL}`);
-  console.log(`   Tables: Projets(${TABLE_PROJECTS}), Tâches(${TABLE_TASKS}), Apps(${TABLE_APPS}), Docs(${TABLE_DOCS}), Settings(${TABLE_SETTINGS})`);
+  console.log(`   Tables Configured: Projects, Tasks, Apps, Docs, Settings`);
 } else {
   console.log("📂 Mode Fichier Local activé (storage.json)");
-  console.log("   Pour activer NocoDB, créez un fichier .env avec NOCODB_URL, NOCODB_TOKEN et les IDs des tables.");
   (async () => {
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -44,13 +42,11 @@ if (useNocoDB) {
 }
 
 app.use(cors());
-// Increase limit to 50mb to handle large document uploads
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
-
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// --- Helper Functions ---
+// --- Helpers ---
 
 const getDefaultData = () => ({ 
   apps: [], 
@@ -61,149 +57,180 @@ const getDefaultData = () => ({
   adminPassword: "admin" 
 });
 
-// Generic NocoDB Fetch
-const nocoFetch = async (tableId, query = {}) => {
+// Sanitize object for NocoDB (empty strings -> null for dates)
+const sanitizeForNoco = (item) => {
+  const clean = { ...item };
+  const dateFields = ['startDate', 'endDate', 'createdAt', 'uploadDate'];
+  
+  Object.keys(clean).forEach(key => {
+    if (clean[key] === '') {
+      // Check if it's likely a date field or just generic cleanup
+      if (dateFields.includes(key)) {
+        clean[key] = null;
+      }
+    }
+  });
+  return clean;
+};
+
+// Generic Fetch with Pagination to get ALL records
+const nocoFetchAll = async (tableId) => {
+  let allRecords = [];
+  let offset = 0;
+  const limit = 1000;
+  let keepFetching = true;
+
   try {
-    const url = new URL(`${NOCODB_URL}/api/v2/tables/${tableId}/records`);
-    url.searchParams.append('limit', '1000'); // Fetch max 1000 records
-    url.searchParams.append('offset', '0');
-    
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'xc-token': NOCODB_TOKEN,
-        'Content-Type': 'application/json'
+    while (keepFetching) {
+      const url = new URL(`${NOCODB_URL}/api/v2/tables/${tableId}/records`);
+      url.searchParams.append('limit', limit.toString());
+      url.searchParams.append('offset', offset.toString());
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'xc-token': NOCODB_TOKEN,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Fetch failed ${response.status}: ${errText}`);
+      }
+
+      const json = await response.json();
+      const list = json.list || [];
+      allRecords = [...allRecords, ...list];
+
+      if (list.length < limit) {
+        keepFetching = false;
+      } else {
+        offset += limit;
+      }
+    }
+    return allRecords;
+  } catch (e) {
+    console.error(`[NocoDB] Error fetching table ${tableId}:`, e.message);
+    throw e; 
+  }
+};
+
+// Generic Sync Logic
+const syncTable = async (tableId, incomingItems) => {
+  try {
+    // 1. Fetch Existing
+    const existingRecords = await nocoFetchAll(tableId);
+
+    // Map: Frontend ID (column 'id') -> NocoDB Row ID (column 'Id')
+    const existingMap = new Map();
+    existingRecords.forEach(r => {
+      if (r.id) existingMap.set(r.id, r.Id);
+    });
+
+    const incomingIds = new Set(incomingItems.map(i => i.id));
+
+    // 2. Prepare Batches
+    const toCreate = [];
+    const toUpdate = [];
+    const toDelete = [];
+
+    // Identify Create/Update
+    for (const item of incomingItems) {
+      const cleanItem = sanitizeForNoco(item);
+      if (existingMap.has(item.id)) {
+        toUpdate.push({ ...cleanItem, Id: existingMap.get(item.id) });
+      } else {
+        toCreate.push(cleanItem);
+      }
+    }
+
+    // Identify Delete
+    existingRecords.forEach(r => {
+      if (r.id && !incomingIds.has(r.id)) {
+        toDelete.push({ Id: r.Id });
       }
     });
 
-    if (!response.ok) throw new Error(`Fetch Error ${response.status}`);
-    const json = await response.json();
-    return json.list || [];
-  } catch (e) {
-    console.error(`Error fetching table ${tableId}:`, e.message);
-    return [];
+    // 3. Execute
+    const baseUrl = `${NOCODB_URL}/api/v2/tables/${tableId}/records`;
+    const headers = { 'xc-token': NOCODB_TOKEN, 'Content-Type': 'application/json' };
+
+    const executeBatch = async (method, records) => {
+      if (records.length === 0) return;
+      
+      const chunkSize = 50; // Safe batch size
+      for (let i = 0; i < records.length; i += chunkSize) {
+        const batch = records.slice(i, i + chunkSize);
+        
+        const res = await fetch(baseUrl, {
+          method,
+          headers,
+          body: JSON.stringify(batch)
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error(`[NocoDB] Sync Error (${method}) on ${tableId}:`, errText);
+          // Don't throw here to allow partial success of other chunks? 
+          // Better to throw to signal failure to frontend
+          throw new Error(`NocoDB ${method} failed: ${errText}`);
+        }
+      }
+    };
+
+    await executeBatch('POST', toCreate);
+    await executeBatch('PATCH', toUpdate);
+    await executeBatch('DELETE', toDelete);
+
+    console.log(`[SYNC] ${tableId} -> +${toCreate.length} ~${toUpdate.length} -${toDelete.length}`);
+  } catch (err) {
+    console.error(`[SYNC FAILED] Table ${tableId}:`, err.message);
+    throw err; // Re-throw to ensure POST /api/data returns error
   }
 };
 
-// Generic NocoDB Sync Logic (Create/Update/Delete)
-// We use the 'id' field from frontend as the reference
-const syncTable = async (tableId, incomingItems) => {
-  // 1. Fetch existing
-  const existingRecords = await nocoFetch(tableId);
-  
-  // Map internal NocoDB ID (Id) to our Frontend ID (id)
-  // existingRecords have { Id: 1, id: "frontend-guid", ... }
-  const existingMap = new Map();
-  existingRecords.forEach(r => {
-    if (r.id) existingMap.set(r.id, r.Id); // Map frontend ID -> NocoDB Row ID
-  });
-
-  const incomingIds = new Set(incomingItems.map(i => i.id));
-  
-  // 2. Identify Actions
-  const toCreate = [];
-  const toUpdate = [];
-  const toDelete = [];
-
-  // Find Creates and Updates
-  for (const item of incomingItems) {
-    if (existingMap.has(item.id)) {
-      // It exists, update it. We attach the NocoDB Row ID ('Id') for the API
-      toUpdate.push({ ...item, Id: existingMap.get(item.id) });
-    } else {
-      toCreate.push(item);
-    }
-  }
-
-  // Find Deletes
-  existingRecords.forEach(r => {
-    if (r.id && !incomingIds.has(r.id)) {
-      toDelete.push({ Id: r.Id });
-    }
-  });
-
-  // 3. Execute Actions (Batch if possible)
-  const baseUrl = `${NOCODB_URL}/api/v2/tables/${tableId}/records`;
-  const headers = { 'xc-token': NOCODB_TOKEN, 'Content-Type': 'application/json' };
-
-  const operations = [];
-
-  if (toCreate.length > 0) {
-    // Chunking creates (NocoDB limit usually 25-100)
-    const chunkSize = 50;
-    for (let i = 0; i < toCreate.length; i += chunkSize) {
-        operations.push(fetch(baseUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(toCreate.slice(i, i + chunkSize))
-        }));
-    }
-  }
-
-  if (toUpdate.length > 0) {
-    const chunkSize = 50;
-    for (let i = 0; i < toUpdate.length; i += chunkSize) {
-        operations.push(fetch(baseUrl, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify(toUpdate.slice(i, i + chunkSize))
-        }));
-    }
-  }
-
-  if (toDelete.length > 0) {
-    const chunkSize = 50;
-    for (let i = 0; i < toDelete.length; i += chunkSize) {
-        operations.push(fetch(baseUrl, {
-            method: 'DELETE',
-            headers,
-            body: JSON.stringify(toDelete.slice(i, i + chunkSize))
-        }));
-    }
-  }
-
-  await Promise.all(operations);
-  console.log(`[SYNC] ${tableId} -> Created: ${toCreate.length}, Updated: ${toUpdate.length}, Deleted: ${toDelete.length}`);
-};
-
-// Special Handler for Settings (Single Row)
 const syncSettings = async (settingsData) => {
-    const records = await nocoFetch(TABLE_SETTINGS);
+  try {
+    const records = await nocoFetchAll(TABLE_SETTINGS);
     const baseUrl = `${NOCODB_URL}/api/v2/tables/${TABLE_SETTINGS}/records`;
     const headers = { 'xc-token': NOCODB_TOKEN, 'Content-Type': 'application/json' };
 
     if (records.length > 0) {
-        // Update first row
-        await fetch(baseUrl, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ Id: records[0].Id, ...settingsData })
-        });
+      const res = await fetch(baseUrl, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ Id: records[0].Id, ...settingsData })
+      });
+      if (!res.ok) console.error("Settings Update Failed", await res.text());
     } else {
-        // Create
-        await fetch(baseUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(settingsData)
-        });
+      const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(settingsData)
+      });
+      if (!res.ok) console.error("Settings Create Failed", await res.text());
     }
+  } catch (e) {
+    console.error("Settings Sync Error", e);
+  }
 };
 
-// --- Main Routes ---
+// --- Routes ---
 
 app.get('/api/data', async (req, res) => {
   if (useNocoDB) {
     try {
       const [apps, documents, projects, tasks, settingsList] = await Promise.all([
-        nocoFetch(TABLE_APPS),
-        nocoFetch(TABLE_DOCS),
-        nocoFetch(TABLE_PROJECTS),
-        nocoFetch(TABLE_TASKS),
-        nocoFetch(TABLE_SETTINGS)
+        nocoFetchAll(TABLE_APPS).catch(e => []),
+        nocoFetchAll(TABLE_DOCS).catch(e => []),
+        nocoFetchAll(TABLE_PROJECTS).catch(e => []),
+        nocoFetchAll(TABLE_TASKS).catch(e => []),
+        nocoFetchAll(TABLE_SETTINGS).catch(e => [])
       ]);
 
       const settings = settingsList[0] || {};
-
+      
       res.json({
         apps,
         documents,
@@ -213,8 +240,8 @@ app.get('/api/data', async (req, res) => {
         adminPassword: settings.adminPassword || "admin"
       });
     } catch (error) {
-      console.error("NocoDB Read Error:", error);
-      res.json(getDefaultData());
+      console.error("Critical Read Error:", error);
+      res.status(500).json(getDefaultData());
     }
   } else {
     try {
@@ -231,10 +258,11 @@ app.post('/api/data', async (req, res) => {
 
   if (useNocoDB) {
     try {
-      // Execute syncs in parallel
+      // We process tables sequentially or using Promise.allSettled to better debug
+      // Using Promise.all so if one fails we know, but we try to log specific errors inside syncTable
       await Promise.all([
         syncTable(TABLE_APPS, apps || []),
-        syncTable(TABLE_DOCS, documents || []), // Note: Heavy if docs are huge
+        syncTable(TABLE_DOCS, documents || []),
         syncTable(TABLE_PROJECTS, projects || []),
         syncTable(TABLE_TASKS, tasks || []),
         syncSettings({ apiKey, adminPassword })
@@ -242,11 +270,10 @@ app.post('/api/data', async (req, res) => {
       
       res.json({ success: true });
     } catch (error) {
-      console.error("NocoDB Save Error:", error);
-      res.status(500).json({ error: 'Database sync failed' });
+      console.error("Global Save Error:", error.message);
+      res.status(500).json({ error: 'Synchronization failed. Check server logs.' });
     }
   } else {
-    // Local File Strategy
     try {
       let existingData = {};
       try {
@@ -266,8 +293,7 @@ app.post('/api/data', async (req, res) => {
       await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
       res.json({ success: true });
     } catch (error) {
-      console.error("Local Save Error:", error);
-      res.status(500).json({ error: 'Failed to save data locally' });
+      res.status(500).json({ error: 'Local save failed' });
     }
   }
 });

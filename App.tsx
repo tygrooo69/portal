@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -46,7 +45,7 @@ const App: React.FC = () => {
       
       if (serverData) {
         setApps(serverData.apps.length > 0 ? serverData.apps : DEFAULT_APPS);
-        setDocuments(serverData.documents);
+        setDocuments(serverData.documents || []);
         
         // Load Projects & Tasks
         if (serverData.projects) setProjects(serverData.projects);
@@ -123,7 +122,15 @@ const App: React.FC = () => {
     if (newPwd !== undefined) setAdminPassword(newPwd);
 
     // Try Save to Server
-    const serverSaved = await api.saveData(newApps, newDocs, newProjects, newTasks, keyToSave, pwdToSave);
+    // Ensure we send Arrays, never undefined
+    const serverSaved = await api.saveData(
+      newApps || [], 
+      newDocs || [], 
+      newProjects || [], 
+      newTasks || [], 
+      keyToSave, 
+      pwdToSave
+    );
     
     if (!serverSaved) {
       // Fallback: Save to LocalStorage
