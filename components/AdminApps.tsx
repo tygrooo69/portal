@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, X, Edit2, Check, ChevronLeft } from 'lucide-react';
 import { AppItem } from '../types';
 import { getIcon, getIconNames } from '../utils/iconHelper';
+import { ConfirmModal } from './ConfirmModal';
 
 interface AdminAppsProps {
   apps: AppItem[];
@@ -21,6 +22,9 @@ export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateAp
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<AppItem>>({});
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Delete Confirmation
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   
   const emptyForm: AppItem = {
     id: '',
@@ -58,6 +62,17 @@ export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateAp
       onAddApp({ ...newAppForm, id: Date.now().toString() });
       setNewAppForm({ ...emptyForm });
       setIsAdding(false);
+    }
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteId) {
+      onDeleteApp(deleteId);
+      setDeleteId(null);
     }
   };
 
@@ -122,7 +137,7 @@ export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateAp
   );
 
   return (
-    <div className="p-6 md:p-8 overflow-y-auto h-full">
+    <div className="p-6 md:p-8 overflow-y-auto h-full relative">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           {onBack && (
@@ -246,7 +261,7 @@ export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateAp
                 <button onClick={() => handleEditClick(app)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <Edit2 size={18} />
                 </button>
-                <button onClick={() => onDeleteApp(app.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <button onClick={() => handleDeleteClick(app.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <Trash2 size={18} />
                 </button>
               </div>
@@ -254,6 +269,14 @@ export const AdminApps: React.FC<AdminAppsProps> = ({ apps, onAddApp, onUpdateAp
           );
         })}
       </div>
+
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        title="Supprimer l'application ?"
+        message="Voulez-vous vraiment supprimer cette application ? Cette action est irréversible."
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteId(null)}
+      />
     </div>
   );
 };

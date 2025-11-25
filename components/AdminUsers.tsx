@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, X, Edit2, Check, ChevronLeft, Lock, Shield, Briefcase } from 'lucide-react';
 import { User } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface AdminUsersProps {
   users: User[];
@@ -20,6 +21,9 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Delete Confirmation
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   
   const emptyForm: User = {
     id: '',
@@ -61,6 +65,17 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
     }
   };
 
+  const handleDeleteClick = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteId) {
+      onDeleteUser(deleteId);
+      setDeleteId(null);
+    }
+  };
+
   const ColorSelector = ({ value, onChange }: { value: string, onChange: (color: string) => void }) => (
     <div>
       <label className="block text-xs font-medium text-slate-500 mb-1">Couleur d'avatar</label>
@@ -82,7 +97,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
   };
 
   return (
-    <div className="p-6 md:p-8 overflow-y-auto h-full">
+    <div className="p-6 md:p-8 overflow-y-auto h-full relative">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           {onBack && (
@@ -271,7 +286,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                 <button onClick={() => handleEditClick(user)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <Edit2 size={18} />
                 </button>
-                <button onClick={() => onDeleteUser(user.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <button onClick={() => handleDeleteClick(user.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <Trash2 size={18} />
                 </button>
               </div>
@@ -279,6 +294,14 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
           );
         })}
       </div>
+
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        title="Supprimer l'utilisateur ?"
+        message="Voulez-vous vraiment supprimer ce compte ? Cette action est irréversible."
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteId(null)}
+      />
     </div>
   );
 };

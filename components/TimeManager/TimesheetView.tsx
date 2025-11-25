@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, Save, Send, ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
 import { User, Timesheet, TimesheetEntry } from '../../types';
 import { getMonday, getWeekDays } from './utils';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface TimesheetViewProps {
   currentUser: User;
@@ -18,6 +19,9 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
   const [currentTimesheet, setCurrentTimesheet] = useState<Timesheet | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedManager, setSelectedManager] = useState<string>('');
+  
+  // Delete Confirmation State
+  const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
 
   const managers = users.filter(u => u.role === 'admin' || u.role === 'assistant');
 
@@ -81,17 +85,22 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
     setCurrentTimesheet({ ...currentTimesheet, entries: [...currentTimesheet.entries, newRow] });
   };
 
-  const removeEntryRow = (entryId: string) => {
-    if (!currentTimesheet) return;
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette ligne ?")) {
-      setCurrentTimesheet({ ...currentTimesheet, entries: currentTimesheet.entries.filter(e => e.id !== entryId) });
-    }
+  const requestRemoveEntryRow = (entryId: string) => {
+    setDeleteEntryId(entryId);
+  };
+
+  const confirmRemoveEntryRow = () => {
+    if (!currentTimesheet || !deleteEntryId) return;
+    setCurrentTimesheet({ 
+      ...currentTimesheet, 
+      entries: currentTimesheet.entries.filter(e => e.id !== deleteEntryId) 
+    });
+    setDeleteEntryId(null);
   };
 
   const saveDraft = () => {
     if (currentTimesheet) {
       onSaveTimesheet({ ...currentTimesheet, status: 'draft' });
-      alert("Brouillon enregistré.");
     }
   };
 
@@ -107,14 +116,13 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
       managerId: selectedManager
     });
     setShowSubmitModal(false);
-    alert("Feuille d'heures transmise !");
   };
 
   const weekDays = getWeekDays(currentWeekStart);
   const isReadOnly = currentTimesheet?.status === 'submitted' || currentTimesheet?.status === 'approved';
 
   return (
-    <div className="p-6 md:p-8 h-full overflow-y-auto">
+    <div className="p-4 md:p-8 h-full overflow-y-auto relative bg-slate-50 dark:bg-slate-950">
       <div className="flex items-center gap-4 mb-6">
          <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ArrowLeft /></button>
          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Saisie des Heures</h1>
@@ -131,7 +139,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                       <h2 className="text-lg font-bold text-slate-800 dark:text-white">
                         Semaine du {currentWeekStart.toLocaleDateString()}
                       </h2>
-                      {/* Date Input Overlay - Improved Visibility */}
+                      {/* Date Input Overlay */}
                       <div className="relative flex items-center justify-center p-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all cursor-pointer shadow-sm" title="Choisir une date">
                          <CalendarIcon size={20} />
                          <input 
@@ -159,8 +167,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
               <button onClick={() => changeWeek('next')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500"><ChevronRight /></button>
             </div>
 
-            {/* Grid */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+            {/* --- DESKTOP VIEW (Table) --- */}
+            <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-medium">
@@ -189,8 +197,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               disabled={isReadOnly}
                               value={entry.businessId}
                               onChange={(e) => handleEntryChange(entry.id, 'businessId', e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                              placeholder="Ex: 24-001"
+                              className="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                              placeholder="Ex: MXXXXX"
                             />
                           </td>
                           <td className="px-4 py-2">
@@ -199,7 +207,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               disabled={isReadOnly}
                               value={entry.zone}
                               onChange={(e) => handleEntryChange(entry.id, 'zone', e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                              className="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
                               placeholder="Ex: Z1"
                             />
                           </td>
@@ -209,7 +217,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               disabled={isReadOnly}
                               value={entry.site}
                               onChange={(e) => handleEntryChange(entry.id, 'site', e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                              className="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
                               placeholder="Nom du chantier"
                             />
                           </td>
@@ -231,7 +239,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                           </td>
                           {!isReadOnly && (
                             <td className="px-4 py-2 text-center">
-                              <button onClick={() => removeEntryRow(entry.id)} className="text-slate-400 hover:text-red-500">
+                              <button onClick={() => requestRemoveEntryRow(entry.id)} className="text-slate-400 hover:text-red-500">
                                 <Trash2 size={16} />
                               </button>
                             </td>
@@ -255,29 +263,115 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                   </tfoot>
                 </table>
               </div>
-              {!isReadOnly && (
-                <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-                  <button onClick={addEntryRow} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium">
-                    <Plus size={18} /> Ajouter une ligne
-                  </button>
-                </div>
-              )}
             </div>
 
+            {/* --- MOBILE VIEW (Cards) --- */}
+            <div className="md:hidden space-y-4">
+              {currentTimesheet?.entries.map((entry) => (
+                <div key={entry.id} className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800">
+                   {/* Header: Project Info */}
+                   <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <label className="text-[10px] uppercase text-slate-400 font-semibold block mb-1">N° Affaire</label>
+                        <input 
+                          type="text" 
+                          disabled={isReadOnly}
+                          value={entry.businessId}
+                          onChange={(e) => handleEntryChange(entry.id, 'businessId', e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                          placeholder="MXXXXX"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase text-slate-400 font-semibold block mb-1">Zone</label>
+                        <input 
+                          type="text" 
+                          disabled={isReadOnly}
+                          value={entry.zone}
+                          onChange={(e) => handleEntryChange(entry.id, 'zone', e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                          placeholder="Z..."
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] uppercase text-slate-400 font-semibold block mb-1">Chantier</label>
+                        <input 
+                          type="text" 
+                          disabled={isReadOnly}
+                          value={entry.site}
+                          onChange={(e) => handleEntryChange(entry.id, 'site', e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                          placeholder="Nom du chantier"
+                        />
+                      </div>
+                   </div>
+
+                   {/* Hours Grid - Compact */}
+                   <div className="grid grid-cols-4 gap-2 mb-4">
+                      {entry.hours.map((h, i) => (
+                        <div key={i} className="flex flex-col items-center">
+                           <span className="text-[10px] text-slate-500 mb-1">{weekDays[i].toLocaleDateString('fr-FR', {weekday: 'short'})}</span>
+                           <input 
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              placeholder="0"
+                              disabled={isReadOnly}
+                              value={h || ''}
+                              onChange={(e) => handleEntryChange(entry.id, 'hours', e.target.value, i)}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                           />
+                        </div>
+                      ))}
+                      <div className="flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                         <span className="text-[10px] text-blue-600 dark:text-blue-400 mb-1 font-bold">TOTAL</span>
+                         <span className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                           {entry.hours.reduce((a, b) => a + b, 0)}
+                         </span>
+                      </div>
+                   </div>
+
+                   {/* Footer */}
+                   {!isReadOnly && (
+                     <div className="flex justify-end pt-2">
+                        <button onClick={() => requestRemoveEntryRow(entry.id)} className="text-red-500 text-xs flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                           <Trash2 size={14} /> Supprimer la ligne
+                        </button>
+                     </div>
+                   )}
+                </div>
+              ))}
+              
+              {/* Mobile Total Summary */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                 <span className="font-bold text-slate-700 dark:text-slate-300">Total Semaine</span>
+                 <span className="text-xl font-bold text-blue-600">
+                    {currentTimesheet?.entries.reduce((sum, entry) => sum + entry.hours.reduce((a,b)=>a+b,0), 0)} h
+                 </span>
+              </div>
+            </div>
+
+            {/* Common Actions */}
             {!isReadOnly && (
-              <div className="flex justify-end gap-4">
-                <button onClick={saveDraft} className="px-6 py-2.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-xl font-medium hover:bg-slate-200 flex items-center gap-2">
-                  <Save size={18} /> Enregistrer Brouillon
+              <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button onClick={addEntryRow} className="w-full md:w-auto flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 font-medium py-2 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl transition-colors">
+                  <Plus size={18} /> Ajouter une ligne
                 </button>
-                <button onClick={() => setShowSubmitModal(true)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex items-center gap-2">
-                  <Send size={18} /> Soumettre
-                </button>
+
+                <div className="flex gap-3 w-full md:w-auto">
+                  <button onClick={saveDraft} className="flex-1 md:flex-none px-6 py-3 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-xl font-medium hover:bg-slate-200 flex items-center justify-center gap-2">
+                    <Save size={18} /> <span className="md:hidden">Brouillon</span><span className="hidden md:inline">Enregistrer Brouillon</span>
+                  </button>
+                  <button onClick={() => setShowSubmitModal(true)} className="flex-1 md:flex-none px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                    <Send size={18} /> Soumettre
+                  </button>
+                </div>
               </div>
             )}
          </div>
 
-         {/* Sidebar: Status / History */}
-         <div className="w-full xl:w-80 space-y-4">
+         {/* Sidebar: Status / History (Hidden on small mobile unless needed, keeping logic simple for now) */}
+         <div className="w-full xl:w-80 space-y-4 hidden xl:block">
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
                <h3 className="font-bold text-slate-800 dark:text-white mb-4">Mes Validations</h3>
                <div className="space-y-3">
@@ -310,7 +404,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
 
       {/* Submit Modal */}
       {showSubmitModal && (
-        <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-800">
               <h3 className="text-lg font-bold mb-4">Transmettre la feuille</h3>
               <p className="text-sm text-slate-500 mb-4">Veuillez sélectionner le Responsable qui validera votre saisie.</p>
@@ -336,6 +430,14 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
            </div>
         </div>
       )}
+
+      <ConfirmModal 
+        isOpen={!!deleteEntryId}
+        title="Supprimer la ligne ?"
+        message="Voulez-vous vraiment supprimer cette ligne de saisie ?"
+        onConfirm={confirmRemoveEntryRow}
+        onClose={() => setDeleteEntryId(null)}
+      />
     </div>
   );
 };

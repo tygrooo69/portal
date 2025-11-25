@@ -5,7 +5,8 @@ import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
 import { BoardView } from './BoardView';
 import { ListView } from './ListView';
-import { TaskModal, ProjectModal, ConfirmModal } from './Modals';
+import { TaskModal, ProjectModal } from './Modals';
+import { ConfirmModal } from '../ConfirmModal'; // Updated import path
 import { downloadCsv, getDaysDiff, addDays } from './utils';
 
 interface ProjectManagerProps {

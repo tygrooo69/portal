@@ -69,21 +69,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           
           {/* Header Logo Area */}
           <div className="p-6 flex flex-col gap-6 flex-shrink-0">
-            <div className="flex items-center justify-between">
-               <div className="flex items-center space-x-3 overflow-hidden">
-                 {logo ? (
-                    <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-md flex-shrink-0" />
-                 ) : (
+            <div className="flex items-center justify-between h-12">
+               {logo ? (
+                  <div className="flex-1 flex justify-start overflow-hidden mr-4 h-full items-center">
+                    <img src={logo} alt="Logo" className="h-full w-auto object-contain max-w-full" />
+                  </div>
+               ) : (
+                 <div className="flex items-center space-x-3 overflow-hidden">
                     <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
                       <span className="text-white font-bold text-xl">L</span>
                     </div>
-                 )}
-                 <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 truncate">
-                   Lumina
-                 </span>
-               </div>
+                    <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 truncate">
+                      Lumina
+                    </span>
+                 </div>
+               )}
                
-               <button onClick={toggleCollapse} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+               <button onClick={toggleCollapse} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0">
                  <Menu size={24} />
                </button>
             </div>

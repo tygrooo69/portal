@@ -3,6 +3,7 @@ import { Upload, Trash2, FileText, FileCode, FileJson, AlertCircle, BrainCircuit
 import { DocumentItem } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
+import { ConfirmModal } from './ConfirmModal';
 
 // Set up PDF.js worker using CDN to avoid build complexity in this environment
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -20,6 +21,9 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [totalFiles, setTotalFiles] = useState(0);
+  
+  // Delete Confirmation
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -143,6 +147,17 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
     }
   };
 
+  const handleDeleteClick = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteId) {
+      onDeleteDocument(deleteId);
+      setDeleteId(null);
+    }
+  };
+
   const getFileIcon = (type: string) => {
     switch(type.toLowerCase()) {
       case 'json': return <FileJson className="text-yellow-500" />;
@@ -155,7 +170,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
   };
 
   return (
-    <div className="p-6 md:p-8 h-full overflow-y-auto">
+    <div className="p-6 md:p-8 h-full overflow-y-auto relative">
       <div className="mb-8 flex items-center gap-4">
          {onBack && (
             <button 
@@ -259,7 +274,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
                     </div>
                   </div>
                   <button 
-                    onClick={(e) => { e.stopPropagation(); onDeleteDocument(doc.id); }}
+                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(doc.id); }}
                     className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     title="Supprimer"
                   >
@@ -271,6 +286,14 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
           </div>
         )}
       </div>
+
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        title="Supprimer le document ?"
+        message="Voulez-vous vraiment supprimer ce document ? L'assistant IA ne pourra plus l'utiliser."
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteId(null)}
+      />
     </div>
   );
 };
