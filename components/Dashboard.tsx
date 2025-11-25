@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare } from 'lucide-react';
+import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare, LogIn } from 'lucide-react';
 import { AppItem, DocumentItem, Project, Task, User } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
@@ -78,10 +78,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Filter Projects for Widget based on User
   // If logged in: show only projects where user is a member
-  // If not logged in: show all (public view)
+  // If not logged in: show nothing (privacy)
   const widgetProjects = currentUser 
     ? projects.filter(p => p.members && p.members.includes(currentUser.id))
-    : projects;
+    : [];
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -215,7 +215,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               <CheckSquare size={16} className={task.status === 'done' ? 'text-green-500' : 'text-blue-500'} />
                               <div>
                                 <p className={`font-medium text-sm ${task.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-white'}`}>{task.title}</p>
-                                <p className="text-[10px] text-slate-400">Projet: {parentProject?.name || 'Inconnu'}</p>
+                                <p className="text--[10px] text-slate-400">Projet: {parentProject?.name || 'Inconnu'}</p>
                               </div>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded border ${task.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
@@ -359,9 +359,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                <CornerDownLeft size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
              </div>
              
-             {widgetProjects.length === 0 ? (
+             {!currentUser ? (
+               <div className="p-8 text-center flex flex-col items-center justify-center">
+                 <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mb-3">
+                    <LogIn size={20} />
+                 </div>
+                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Connectez-vous</p>
+                 <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Identifiez-vous pour voir vos projets et tâches en cours.</p>
+               </div>
+             ) : widgetProjects.length === 0 ? (
                <div className="p-6 text-center text-sm text-slate-400">
-                 {currentUser ? 'Aucun projet assigné.' : 'Aucun projet actif.'}
+                 Aucun projet assigné pour le moment.
                </div>
              ) : (
                <div className="overflow-x-auto">

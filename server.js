@@ -70,13 +70,13 @@ async function initDB() {
     try {
       await conn.query(`ALTER TABLE users ADD COLUMN password VARCHAR(255)`);
       console.log("Migration: Added 'password' column to users.");
-    } catch (e: any) {
+    } catch (e) {
        if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
     }
 
     // Seed Users if empty
     const [existingUsers] = await conn.query('SELECT COUNT(*) as count FROM users');
-    if ((existingUsers as any)[0].count === 0) {
+    if (existingUsers[0].count === 0) {
       console.log("Seeding default users...");
       await conn.query(`
         INSERT INTO users (id, name, email, password, color) VALUES 
@@ -107,7 +107,7 @@ async function initDB() {
     try {
       await conn.query(`ALTER TABLE projects ADD COLUMN members TEXT`);
       console.log("Migration: Added 'members' column to projects.");
-    } catch (e: any) {
+    } catch (e) {
       if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
     }
 
@@ -131,7 +131,7 @@ async function initDB() {
     try {
       await conn.query(`ALTER TABLE tasks ADD COLUMN assignee VARCHAR(255)`);
       console.log("Migration: Added 'assignee' column to tasks.");
-    } catch (e: any) {
+    } catch (e) {
        if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
     }
 
@@ -206,10 +206,10 @@ app.get('/api/data', async (req, res) => {
       const [users] = await pool.query('SELECT * FROM users');
       const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
       
-      const settings = (settingsRows as any)[0] || { apiKey: '', adminPassword: 'admin' };
+      const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin' };
 
       // Parse 'members' JSON string back to array for frontend
-      const projects = (projectsRows as any[]).map(p => ({
+      const projects = projectsRows.map(p => ({
         ...p,
         members: p.members ? JSON.parse(p.members) : []
       }));
@@ -251,14 +251,14 @@ app.post('/api/data', async (req, res) => {
       // 2. Apps
       await conn.query('DELETE FROM apps');
       if (apps && apps.length > 0) {
-        const appValues = apps.map((a: any) => [a.id, a.name, a.description, a.icon, a.color, a.category, a.url]);
+        const appValues = apps.map(a => [a.id, a.name, a.description, a.icon, a.color, a.category, a.url]);
         await conn.query('INSERT INTO apps (id, name, description, icon, color, category, url) VALUES ?', [appValues]);
       }
 
       // 3. Projects
       await conn.query('DELETE FROM projects');
       if (projects && projects.length > 0) {
-        const projValues = projects.map((p: any) => [
+        const projValues = projects.map(p => [
           p.id, p.name, p.description || '', p.color, p.status || 'active', p.priority || 'medium', p.startDate, p.endDate, p.createdAt, 
           JSON.stringify(p.members || []) // Store array as JSON string
         ]);
@@ -268,7 +268,7 @@ app.post('/api/data', async (req, res) => {
       // 4. Tasks
       await conn.query('DELETE FROM tasks');
       if (tasks && tasks.length > 0) {
-        const taskValues = tasks.map((t: any) => [
+        const taskValues = tasks.map(t => [
           t.id, t.projectId, t.title, t.description || '', t.status, t.priority, t.startDate, t.endDate, t.assignee || null
         ]);
         await conn.query('INSERT INTO tasks (id, projectId, title, description, status, priority, startDate, endDate, assignee) VALUES ?', [taskValues]);
@@ -277,14 +277,14 @@ app.post('/api/data', async (req, res) => {
       // 5. Documents
       await conn.query('DELETE FROM documents');
       if (documents && documents.length > 0) {
-        const docValues = documents.map((d: any) => [d.id, d.name, d.type, d.uploadDate, d.content]);
+        const docValues = documents.map(d => [d.id, d.name, d.type, d.uploadDate, d.content]);
         await conn.query('INSERT INTO documents (id, name, type, uploadDate, content) VALUES ?', [docValues]);
       }
       
       // 6. Users
       await conn.query('DELETE FROM users');
       if (users && users.length > 0) {
-        const userValues = users.map((u: any) => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color]);
+        const userValues = users.map(u => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color]);
         await conn.query('INSERT INTO users (id, name, email, password, avatar, color) VALUES ?', [userValues]);
       }
 
