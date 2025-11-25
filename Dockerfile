@@ -12,7 +12,7 @@ COPY package*.json ./
 # RUN npm install && npm audit fix --force
 
 # Installer les dépendances
-RUN npm ci --only=production=true
+RUN npm ci --only=production
 
 # Corriger les vulnérabilités (ignorer les erreurs car non-bloquantes en dev)
 RUN npm audit fix --force || true
@@ -63,4 +63,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Démarrer le serveur
 
 CMD ["node", "server.js"]
+
 
