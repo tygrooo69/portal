@@ -25,6 +25,11 @@ export interface User {
   password?: string; // New password field
   avatar?: string; // URL or initials
   color: string; // Tailwind color class for fallback
+  leaveBalance?: {
+    paid: number; // Congés Payés
+    rtt: number;
+    sick: number;
+  };
 }
 
 export interface Project {
@@ -71,12 +76,13 @@ export interface Comment {
 export interface Notification {
   id: string;
   userId: string;
-  type: 'assignment' | 'deadline' | 'mention';
+  type: 'assignment' | 'deadline' | 'mention' | 'leave_request' | 'leave_status';
   message: string;
   isRead: boolean;
   createdAt: string;
   linkProjectId?: string;
   linkTaskId?: string;
+  linkLeaveId?: string;
 }
 
 export interface ChatMessage {
@@ -87,4 +93,27 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
-export type ViewMode = 'dashboard' | 'projects' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs' | 'admin-users';
+export interface TimeEntry {
+  id: string;
+  userId: string;
+  projectId?: string; // Optional link to a project
+  startTime: string; // ISO String
+  endTime?: string; // ISO String (null if currently running)
+  description?: string;
+  type: 'work' | 'break';
+}
+
+export interface LeaveRequest {
+  id: string;
+  userId: string;
+  type: 'paid' | 'rtt' | 'sick' | 'unpaid';
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  halfDay?: 'morning' | 'afternoon' | 'none'; // For single day requests
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export type ViewMode = 'dashboard' | 'projects' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs' | 'admin-users' | 'time-manager';

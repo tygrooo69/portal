@@ -66,27 +66,6 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Add password column if it doesn't exist (Migration)
-    try {
-      await conn.query(`ALTER TABLE users ADD COLUMN password VARCHAR(255)`);
-      console.log("Migration: Added 'password' column to users.");
-    } catch (e) {
-       // Ignore if exists
-    }
-
-    // Seed Users if empty
-    const [existingUsers] = await conn.query('SELECT COUNT(*) as count FROM users');
-    if (existingUsers[0].count === 0) {
-      console.log("Seeding default users...");
-      await conn.query(`
-        INSERT INTO users (id, name, email, password, color) VALUES 
-        ('u1', 'Alice Dubois', 'alice@lumina.com', '1234', 'bg-pink-500'),
-        ('u2', 'Marc Martin', 'marc@lumina.com', '1234', 'bg-blue-500'),
-        ('u3', 'Sophie Bernard', 'sophie@lumina.com', '1234', 'bg-purple-500'),
-        ('u4', 'Thomas Petit', 'thomas@lumina.com', '1234', 'bg-green-500');
-      `);
-    }
-
     // Projects Table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS projects (
@@ -102,10 +81,6 @@ async function initDB() {
         members TEXT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
-
-    try {
-      await conn.query(`ALTER TABLE projects ADD COLUMN members TEXT`);
-    } catch (e) { /* ignore */ }
 
     // Tasks Table
     await conn.query(`
@@ -125,21 +100,7 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    try {
-      await conn.query(`ALTER TABLE tasks ADD COLUMN assignee VARCHAR(255)`);
-    } catch (e) { /* ignore */ }
-
-    try {
-      await conn.query(`ALTER TABLE tasks ADD COLUMN subtasks LONGTEXT`);
-      console.log("Migration: Added 'subtasks' column to tasks.");
-    } catch (e) { /* ignore */ }
-
-    try {
-      await conn.query(`ALTER TABLE tasks ADD COLUMN dependencies LONGTEXT`);
-      console.log("Migration: Added 'dependencies' column to tasks.");
-    } catch (e) { /* ignore */ }
-
-    // Comments Table (New)
+    // Comments Table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS comments (
         id VARCHAR(255) PRIMARY KEY,
@@ -151,7 +112,7 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Notifications Table (New)
+    // Notifications Table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS notifications (
         id VARCHAR(255) PRIMARY KEY,
@@ -163,6 +124,37 @@ async function initDB() {
         linkProjectId VARCHAR(255),
         linkTaskId VARCHAR(255),
         INDEX idx_user (userId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Time Entries Table (NEW)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS time_entries (
+        id VARCHAR(255) PRIMARY KEY,
+        userId VARCHAR(255),
+        projectId VARCHAR(255),
+        startTime VARCHAR(50),
+        endTime VARCHAR(50),
+        description TEXT,
+        type VARCHAR(20),
+        INDEX idx_user_time (userId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Leave Requests Table (NEW)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS leave_requests (
+        id VARCHAR(255) PRIMARY KEY,
+        userId VARCHAR(255),
+        type VARCHAR(20),
+        startDate VARCHAR(50),
+        endDate VARCHAR(50),
+        halfDay VARCHAR(20),
+        reason TEXT,
+        status VARCHAR(20),
+        rejectionReason TEXT,
+        createdAt VARCHAR(50),
+        INDEX idx_user_leave (userId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -200,11 +192,6 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    try {
-      await conn.query(`ALTER TABLE settings ADD COLUMN logo LONGTEXT`);
-      console.log("Migration: Added 'logo' column to settings.");
-    } catch (e) { /* ignore */ }
-
     await conn.query(`
       INSERT IGNORE INTO settings (id, apiKey, adminPassword, logo) VALUES (1, '', 'admin', '');
     `);
@@ -228,6 +215,8 @@ const getDefaultData = () => ({
   users: [],
   comments: [],
   notifications: [],
+  timeEntries: [],
+  leaveRequests: [],
   apiKey: "", 
   adminPassword: "admin",
   logo: ""
@@ -245,6 +234,8 @@ app.get('/api/data', async (req, res) => {
       const [users] = await pool.query('SELECT * FROM users');
       const [comments] = await pool.query('SELECT * FROM comments');
       const [notificationsRows] = await pool.query('SELECT * FROM notifications');
+      const [timeEntries] = await pool.query('SELECT * FROM time_entries');
+      const [leaveRequests] = await pool.query('SELECT * FROM leave_requests');
       const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
       
       const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin', logo: '' };
@@ -274,6 +265,8 @@ app.get('/api/data', async (req, res) => {
         users,
         comments,
         notifications,
+        timeEntries,
+        leaveRequests,
         apiKey: settings.apiKey,
         adminPassword: settings.adminPassword,
         logo: settings.logo || ''
@@ -293,28 +286,26 @@ app.get('/api/data', async (req, res) => {
 });
 
 app.post('/api/data', async (req, res) => {
-  const { apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword, logo } = req.body;
+  const { apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, apiKey, adminPassword, logo } = req.body;
 
   if (useMySQL && pool) {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      // 1. Settings
-      // Retrieve existing logo if not provided in request (to allow partial updates if needed, though here we send full state)
+      // Settings
       const [currentSettings] = await conn.query('SELECT logo FROM settings WHERE id = 1');
       const logoToSave = logo !== undefined ? logo : (currentSettings[0]?.logo || '');
-
       await conn.query('UPDATE settings SET apiKey = ?, adminPassword = ?, logo = ? WHERE id = 1', [apiKey || '', adminPassword || 'admin', logoToSave]);
 
-      // 2. Apps
+      // Apps
       await conn.query('DELETE FROM apps');
       if (apps && apps.length > 0) {
         const appValues = apps.map(a => [a.id, a.name, a.description, a.icon, a.color, a.category, a.url]);
         await conn.query('INSERT INTO apps (id, name, description, icon, color, category, url) VALUES ?', [appValues]);
       }
 
-      // 3. Projects
+      // Projects
       await conn.query('DELETE FROM projects');
       if (projects && projects.length > 0) {
         const projValues = projects.map(p => [
@@ -324,7 +315,7 @@ app.post('/api/data', async (req, res) => {
         await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members) VALUES ?', [projValues]);
       }
 
-      // 4. Tasks
+      // Tasks
       await conn.query('DELETE FROM tasks');
       if (tasks && tasks.length > 0) {
         const taskValues = tasks.map(t => [
@@ -334,32 +325,46 @@ app.post('/api/data', async (req, res) => {
         await conn.query('INSERT INTO tasks (id, projectId, title, description, status, priority, startDate, endDate, assignee, subtasks, dependencies) VALUES ?', [taskValues]);
       }
 
-      // 5. Documents
+      // Documents
       await conn.query('DELETE FROM documents');
       if (documents && documents.length > 0) {
         const docValues = documents.map(d => [d.id, d.name, d.type, d.uploadDate, d.content]);
         await conn.query('INSERT INTO documents (id, name, type, uploadDate, content) VALUES ?', [docValues]);
       }
       
-      // 6. Users
+      // Users
       await conn.query('DELETE FROM users');
       if (users && users.length > 0) {
         const userValues = users.map(u => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color]);
         await conn.query('INSERT INTO users (id, name, email, password, avatar, color) VALUES ?', [userValues]);
       }
 
-      // 7. Comments
+      // Comments
       await conn.query('DELETE FROM comments');
       if (comments && comments.length > 0) {
         const comValues = comments.map(c => [c.id, c.taskId, c.userId, c.text, c.createdAt]);
         await conn.query('INSERT INTO comments (id, taskId, userId, text, createdAt) VALUES ?', [comValues]);
       }
 
-      // 8. Notifications
+      // Notifications
       await conn.query('DELETE FROM notifications');
       if (notifications && notifications.length > 0) {
         const notifValues = notifications.map(n => [n.id, n.userId, n.type, n.message, n.isRead, n.createdAt, n.linkProjectId || null, n.linkTaskId || null]);
         await conn.query('INSERT INTO notifications (id, userId, type, message, isRead, createdAt, linkProjectId, linkTaskId) VALUES ?', [notifValues]);
+      }
+
+      // Time Entries
+      await conn.query('DELETE FROM time_entries');
+      if (timeEntries && timeEntries.length > 0) {
+        const timeValues = timeEntries.map(t => [t.id, t.userId, t.projectId || null, t.startTime, t.endTime || null, t.description || '', t.type]);
+        await conn.query('INSERT INTO time_entries (id, userId, projectId, startTime, endTime, description, type) VALUES ?', [timeValues]);
+      }
+
+      // Leave Requests
+      await conn.query('DELETE FROM leave_requests');
+      if (leaveRequests && leaveRequests.length > 0) {
+        const leaveValues = leaveRequests.map(l => [l.id, l.userId, l.type, l.startDate, l.endDate, l.halfDay || null, l.reason || '', l.status, l.rejectionReason || '', l.createdAt]);
+        await conn.query('INSERT INTO leave_requests (id, userId, type, startDate, endDate, halfDay, reason, status, rejectionReason, createdAt) VALUES ?', [leaveValues]);
       }
 
       await conn.commit();
@@ -374,7 +379,6 @@ app.post('/api/data', async (req, res) => {
   } else {
     // Local File Mode
     try {
-      // Read current for fallback if logo undefined
       const currentData = JSON.parse(await fs.readFile(DATA_FILE, 'utf8').catch(() => '{}'));
       const logoToSave = logo !== undefined ? logo : (currentData.logo || '');
 
@@ -386,6 +390,8 @@ app.post('/api/data', async (req, res) => {
         users: users || [],
         comments: comments || [],
         notifications: notifications || [],
+        timeEntries: timeEntries || [],
+        leaveRequests: leaveRequests || [],
         apiKey, 
         adminPassword,
         logo: logoToSave

@@ -9,7 +9,8 @@ import { Settings } from './components/Settings';
 import { LoginModal } from './components/LoginModal';
 import { ProfileModal } from './components/ProfileModal';
 import { ProjectManager } from './components/ProjectManager/index';
-import { ViewMode, AppItem, DocumentItem, Project, Task, User, Comment, Notification } from './types';
+import { TimeManager } from './components/TimeManager';
+import { ViewMode, AppItem, DocumentItem, Project, Task, User, Comment, Notification, TimeEntry, LeaveRequest } from './types';
 import { Moon, Sun } from 'lucide-react';
 import { api } from './services/api';
 
@@ -35,6 +36,10 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  
+  // Time & Leave Management
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -66,6 +71,10 @@ const App: React.FC = () => {
         if (serverData.users) setUsers(serverData.users);
         if (serverData.comments) setComments(serverData.comments);
         if (serverData.notifications) setNotifications(serverData.notifications);
+        
+        // Time & Leave
+        if (serverData.timeEntries) setTimeEntries(serverData.timeEntries);
+        if (serverData.leaveRequests) setLeaveRequests(serverData.leaveRequests);
 
         if (serverData.apiKey) setApiKey(serverData.apiKey);
         if (serverData.adminPassword) setAdminPassword(serverData.adminPassword);
@@ -133,21 +142,17 @@ const App: React.FC = () => {
 
   // --- ACCESS CONTROL LOGIC ---
   
-  // Filter projects: User sees only projects where they are a member
-  // If no user is logged in, they see nothing (Strict privacy)
   const authorizedProjects = useMemo(() => {
     if (!currentUser) return [];
     return projects.filter(p => p.members && p.members.includes(currentUser.id));
   }, [projects, currentUser]);
 
-  // Filter tasks: User sees tasks only for authorized projects
   const authorizedTasks = useMemo(() => {
     if (!currentUser) return [];
     const authorizedProjectIds = authorizedProjects.map(p => p.id);
     return tasks.filter(t => authorizedProjectIds.includes(t.projectId));
   }, [tasks, authorizedProjects, currentUser]);
 
-  // Filter notifications: User sees only their own notifications
   const userNotifications = useMemo(() => {
     if (!currentUser) return [];
     return notifications.filter(n => n.userId === currentUser.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -163,6 +168,8 @@ const App: React.FC = () => {
     newUsers: User[],
     newComments: Comment[],
     newNotifications: Notification[],
+    newTimeEntries: TimeEntry[],
+    newLeaveRequests: LeaveRequest[],
     newKey?: string, 
     newPwd?: string,
     newLogo?: string
@@ -179,6 +186,8 @@ const App: React.FC = () => {
     setUsers(newUsers);
     setComments(newComments);
     setNotifications(newNotifications);
+    setTimeEntries(newTimeEntries);
+    setLeaveRequests(newLeaveRequests);
 
     if (newKey !== undefined) setApiKey(newKey);
     if (newPwd !== undefined) setAdminPassword(newPwd);
@@ -193,13 +202,15 @@ const App: React.FC = () => {
       newUsers || [],
       newComments || [],
       newNotifications || [],
+      newTimeEntries || [],
+      newLeaveRequests || [],
       keyToSave, 
       pwdToSave,
       logoToSave
     );
     
     if (!serverSaved) {
-      // Fallback: Save to LocalStorage
+      // Fallback: Save to LocalStorage (Only minimal set if needed, usually server is reliable in this demo)
       try {
         localStorage.setItem('lumina_apps', JSON.stringify(newApps));
         localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
@@ -215,67 +226,60 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, key, undefined, undefined);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, key, undefined, undefined);
   };
 
   const handleSaveAdminPassword = (password: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, undefined, password, undefined);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, undefined, password, undefined);
   };
 
   const handleSaveLogo = (newLogo: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, undefined, undefined, newLogo);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, undefined, undefined, newLogo);
   };
 
   const handleAddApp = (app: AppItem) => {
-    persistData([...apps, app], documents, projects, tasks, users, comments, notifications);
+    persistData([...apps, app], documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleUpdateApp = (updatedApp: AppItem) => {
-    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks, users, comments, notifications);
+    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleDeleteApp = (id: string) => {
-    persistData(apps.filter(a => a.id !== id), documents, projects, tasks, users, comments, notifications);
+    persistData(apps.filter(a => a.id !== id), documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleAddDocuments = (newDocs: DocumentItem[]) => {
-    persistData(apps, [...documents, ...newDocs], projects, tasks, users, comments, notifications);
+    persistData(apps, [...documents, ...newDocs], projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleDeleteDocument = (id: string) => {
-    persistData(apps, documents.filter(d => d.id !== id), projects, tasks, users, comments, notifications);
+    persistData(apps, documents.filter(d => d.id !== id), projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   // --- Project Handlers ---
   const handleAddProject = (project: Project) => {
-    // Current user is already added in ProjectManager/index.tsx
-    persistData(apps, documents, [...projects, project], tasks, users, comments, notifications);
+    persistData(apps, documents, [...projects, project], tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
-    // SECURITY CHECK: Can only update if member
     if (currentUser) {
        const existing = projects.find(p => p.id === updatedProject.id);
        if (existing && existing.members && !existing.members.includes(currentUser.id)) {
          alert("Vous n'êtes pas autorisé à modifier ce projet.");
          return;
        }
-    } else {
-       return; 
-    }
+    } else { return; }
 
-    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users, comments, notifications);
+    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleDeleteProject = (id: string) => {
-    // SECURITY CHECK
     const project = projects.find(p => p.id === id);
     if (currentUser && project && project.members && !project.members.includes(currentUser.id)) {
       alert("Vous n'êtes pas autorisé à supprimer ce projet.");
       return;
     }
-
-    // Confirmation is now handled in ProjectManager component via Modal
 
     persistData(
       apps, 
@@ -283,17 +287,17 @@ const App: React.FC = () => {
       projects.filter(p => p.id !== id), 
       tasks.filter(t => t.projectId !== id),
       users,
-      comments.filter(c => tasks.find(t => t.id === c.taskId && t.projectId === id)), // Clean comments
-      notifications
+      comments.filter(c => tasks.find(t => t.id === c.taskId && t.projectId === id)),
+      notifications,
+      timeEntries,
+      leaveRequests
     );
   };
 
-  // --- Task Handlers & Notifications Logic ---
+  // --- Task Handlers ---
 
   const handleAddTask = (task: Task) => {
     let newNotifications = [...notifications];
-    
-    // Notify Assignee if it's not the current user
     if (task.assignee && task.assignee !== currentUser?.id) {
        const notif: Notification = {
           id: Date.now().toString() + 'n',
@@ -307,11 +311,9 @@ const App: React.FC = () => {
        };
        newNotifications.push(notif);
     }
-
-    persistData(apps, documents, projects, [...tasks, task], users, comments, newNotifications);
+    persistData(apps, documents, projects, [...tasks, task], users, comments, newNotifications, timeEntries, leaveRequests);
   };
 
-  // Single Task Update
   const handleUpdateTask = (updatedTask: Task) => {
     const parentProject = projects.find(p => p.id === updatedTask.projectId);
     if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
@@ -322,7 +324,6 @@ const App: React.FC = () => {
     let newNotifications = [...notifications];
     const oldTask = tasks.find(t => t.id === updatedTask.id);
 
-    // Notify if assignee CHANGED and is not me
     if (oldTask && updatedTask.assignee && updatedTask.assignee !== oldTask.assignee && updatedTask.assignee !== currentUser?.id) {
        const notif: Notification = {
           id: Date.now().toString() + 'n',
@@ -337,12 +338,10 @@ const App: React.FC = () => {
        newNotifications.push(notif);
     }
 
-    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users, comments, newNotifications);
+    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users, comments, newNotifications, timeEntries, leaveRequests);
   };
 
-  // Multiple Task Update (Bulk)
   const handleUpdateTasks = (updatedTasks: Task[]) => {
-    // Just verify permission for the first one as a basic check
     if (updatedTasks.length > 0) {
       const parentProject = projects.find(p => p.id === updatedTasks[0].projectId);
       if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
@@ -350,56 +349,46 @@ const App: React.FC = () => {
         return;
       }
     }
-
     const newTasksList = tasks.map(t => {
       const updated = updatedTasks.find(u => u.id === t.id);
       return updated ? updated : t;
     });
-
-    persistData(apps, documents, projects, newTasksList, users, comments, notifications);
+    persistData(apps, documents, projects, newTasksList, users, comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleDeleteTask = (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-
     const parentProject = projects.find(p => p.id === task.projectId);
     if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
        alert("Vous n'avez pas les droits pour supprimer cette tâche.");
        return;
     }
-
-    // Confirmation is now handled in ProjectManager component via Modal
-
-    persistData(apps, documents, projects, tasks.filter(t => t.id !== id), users, comments.filter(c => c.taskId !== id), notifications);
+    persistData(apps, documents, projects, tasks.filter(t => t.id !== id), users, comments.filter(c => c.taskId !== id), notifications, timeEntries, leaveRequests);
   };
 
-  // --- Comment Handlers ---
   const handleAddComment = (comment: Comment) => {
-    persistData(apps, documents, projects, tasks, users, [...comments, comment], notifications);
+    persistData(apps, documents, projects, tasks, users, [...comments, comment], notifications, timeEntries, leaveRequests);
   };
 
-  // --- Notification Handlers ---
   const handleMarkNotificationRead = (notifId: string) => {
     const newNotifs = notifications.map(n => n.id === notifId ? { ...n, isRead: true } : n);
-    persistData(apps, documents, projects, tasks, users, comments, newNotifs);
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timeEntries, leaveRequests);
   };
 
   const handleMarkAllNotificationsRead = () => {
     if (!currentUser) return;
     const newNotifs = notifications.map(n => n.userId === currentUser.id ? { ...n, isRead: true } : n);
-    persistData(apps, documents, projects, tasks, users, comments, newNotifs);
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timeEntries, leaveRequests);
   };
 
-  // --- User Handlers ---
   const handleAddUser = (user: User) => {
-    persistData(apps, documents, projects, tasks, [...users, user], comments, notifications);
+    persistData(apps, documents, projects, tasks, [...users, user], comments, notifications, timeEntries, leaveRequests);
   };
 
   const handleUpdateUser = (updatedUser: User) => {
     const newUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
-    persistData(apps, documents, projects, tasks, newUsers, comments, notifications);
-    
+    persistData(apps, documents, projects, tasks, newUsers, comments, notifications, timeEntries, leaveRequests);
     if (currentUser && currentUser.id === updatedUser.id) {
        setCurrentUser(updatedUser);
        sessionStorage.setItem('lumina_current_user', JSON.stringify(updatedUser));
@@ -407,10 +396,42 @@ const App: React.FC = () => {
   };
 
   const handleDeleteUser = (id: string) => {
-    persistData(apps, documents, projects, tasks, users.filter(u => u.id !== id), comments, notifications);
+    persistData(apps, documents, projects, tasks, users.filter(u => u.id !== id), comments, notifications, timeEntries, leaveRequests);
     if (currentUser && currentUser.id === id) {
       handleLogout();
     }
+  };
+
+  // --- Time Manager Handlers ---
+  const handleClockIn = (entry: TimeEntry) => {
+    persistData(apps, documents, projects, tasks, users, comments, notifications, [...timeEntries, entry], leaveRequests);
+  };
+
+  const handleClockOut = (entryId: string, endTime: string) => {
+    const newEntries = timeEntries.map(e => e.id === entryId ? { ...e, endTime } : e);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, newEntries, leaveRequests);
+  };
+
+  const handleAddLeaveRequest = (request: LeaveRequest) => {
+    // Notify admins (simplified to all users for demo, in real app filter for admins)
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, [...leaveRequests, request]);
+  };
+
+  const handleUpdateLeaveRequest = (request: LeaveRequest) => {
+    const newReqs = leaveRequests.map(r => r.id === request.id ? request : r);
+    // Notify requester
+    let newNotifs = [...notifications];
+    if (request.status !== 'pending') {
+       newNotifs.push({
+         id: Date.now().toString(),
+         userId: request.userId,
+         type: 'leave_status',
+         message: `Votre demande de congé a été ${request.status === 'approved' ? 'acceptée' : 'refusée'}.`,
+         isRead: false,
+         createdAt: new Date().toISOString()
+       });
+    }
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timeEntries, newReqs);
   };
 
   // --- Login / Logout ---
@@ -422,18 +443,18 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setCurrentUser(null);
     sessionStorage.removeItem('lumina_current_user');
-    setView('dashboard'); // Redirect to dashboard on logout
+    setView('dashboard');
   };
 
   const handleProjectClickFromDashboard = (projectId: string) => {
     setTargetProjectId(projectId);
-    setTargetTaskId(null); // Reset task selection
+    setTargetTaskId(null);
     setView('projects');
   };
 
   const handleTaskClickFromDashboard = (taskId: string, projectId: string) => {
     setTargetProjectId(projectId);
-    setTargetTaskId(taskId); // Set task selection
+    setTargetTaskId(taskId);
     setView('projects');
   };
 
@@ -480,9 +501,23 @@ const App: React.FC = () => {
              onDeleteProject={handleDeleteProject}
              onAddTask={handleAddTask}
              onUpdateTask={handleUpdateTask}
-             onUpdateTasks={handleUpdateTasks} // Pass the bulk update handler
+             onUpdateTasks={handleUpdateTasks} 
              onDeleteTask={handleDeleteTask}
              onAddComment={handleAddComment}
+          />
+        );
+      case 'time-manager':
+        return (
+          <TimeManager 
+            currentUser={currentUser}
+            users={users}
+            projects={authorizedProjects}
+            timeEntries={timeEntries}
+            leaveRequests={leaveRequests}
+            onClockIn={handleClockIn}
+            onClockOut={handleClockOut}
+            onAddLeaveRequest={handleAddLeaveRequest}
+            onUpdateLeaveRequest={handleUpdateLeaveRequest}
           />
         );
       case 'ai-chat':

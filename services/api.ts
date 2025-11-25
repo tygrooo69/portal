@@ -1,4 +1,4 @@
-import { AppItem, DocumentItem, Project, Task, User, Comment, Notification } from '../types';
+import { AppItem, DocumentItem, Project, Task, User, Comment, Notification, TimeEntry, LeaveRequest } from '../types';
 
 interface StorageData {
   apps: AppItem[];
@@ -8,6 +8,8 @@ interface StorageData {
   users?: User[];
   comments?: Comment[];
   notifications?: Notification[];
+  timeEntries?: TimeEntry[];
+  leaveRequests?: LeaveRequest[];
   apiKey?: string;
   adminPassword?: string;
   logo?: string;
@@ -36,6 +38,8 @@ export const api = {
     users: User[],
     comments: Comment[],
     notifications: Notification[],
+    timeEntries: TimeEntry[],
+    leaveRequests: LeaveRequest[],
     apiKey?: string, 
     adminPassword?: string,
     logo?: string
@@ -46,7 +50,20 @@ export const api = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword, logo }),
+        body: JSON.stringify({ 
+          apps, 
+          documents, 
+          projects, 
+          tasks, 
+          users, 
+          comments, 
+          notifications, 
+          timeEntries,
+          leaveRequests,
+          apiKey, 
+          adminPassword, 
+          logo 
+        }),
       });
       return response.ok;
     } catch (error) {
