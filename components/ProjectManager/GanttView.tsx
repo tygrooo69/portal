@@ -155,6 +155,9 @@ export const GanttView: React.FC<GanttViewProps> = ({
           <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
             <path d="M0,0 L0,6 L6,3 z" fill="#94a3b8" />
           </marker>
+          <marker id="circlehead" markerWidth="4" markerHeight="4" refX="2" refY="2">
+             <circle cx="2" cy="2" r="2" fill="#94a3b8" />
+          </marker>
         </defs>
         {items.map((item, index) => {
           const task = item as Task;
@@ -183,18 +186,33 @@ export const GanttView: React.FC<GanttViewProps> = ({
             const x2 = metrics.left;
             const y2 = currentY;
 
-            // Simple Path Logic
-            const path = `M ${x1} ${y1} C ${x1 + 20} ${y1}, ${x2 - 20} ${y2}, ${x2} ${y2}`;
+            // Orthogonal Path Logic: Start -> Right (15px) -> Down/Up -> Left/Right -> End
+            // Use simple L shapes or U shapes
+            let path = "";
+            const spur = 15;
+
+            if (x2 > x1 + spur) {
+              // Standard forward flow: Right -> Down -> Right
+              path = `M ${x1} ${y1} L ${x1 + spur} ${y1} L ${x1 + spur} ${y2} L ${x2} ${y2}`;
+            } else {
+              // Backward flow (Loop around): Right -> Down -> Left -> Down -> Right
+              // Or simpler: Right -> Down (midway) -> Left (behind start) -> Down -> Right
+              // Let's use simpler loop: Right -> Down -> Left -> End
+              const midY = y1 + (y2 > y1 ? 20 : -20);
+              path = `M ${x1} ${y1} L ${x1 + spur} ${y1} L ${x1 + spur} ${midY} L ${x2 - spur} ${midY} L ${x2 - spur} ${y2} L ${x2} ${y2}`;
+            }
 
             return (
               <path 
                 key={`${depId}-${task.id}`}
                 d={path}
-                stroke="#cbd5e1"
-                strokeWidth="2"
+                stroke="#94a3b8"
+                strokeWidth="1.5"
                 fill="none"
+                markerStart="url(#circlehead)"
                 markerEnd="url(#arrowhead)"
-                className="dark:stroke-slate-600"
+                strokeLinejoin="round"
+                className="dark:stroke-slate-500 opacity-60 hover:opacity-100 hover:stroke-2 hover:stroke-blue-500 transition-all duration-200"
               />
             );
           });

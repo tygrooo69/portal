@@ -172,6 +172,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   // Filter out self from dependencies list
   const availableDependencies = allTasks.filter(t => t.id !== task?.id);
 
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   if (!task && !isNew) return null;
 
   return (
@@ -362,7 +366,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                    return (
                      <div key={comment.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
                         <div className={`w-8 h-8 rounded-full ${user?.color || 'bg-slate-400'} flex-shrink-0 flex items-center justify-center text-xs text-white font-bold`}>
-                           {user?.name.charAt(0) || '?'}
+                           {user ? getInitials(user.name) : '?'}
                         </div>
                         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
                            <div className={`px-3 py-2 rounded-xl text-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none'}`}>
@@ -459,6 +463,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSa
     }
   };
 
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   if (!project && !isNew) return null;
 
   return (
@@ -538,7 +546,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSa
                       className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800' : 'hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'}`}
                     >
                        <div className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[10px] text-white font-bold`}>
-                         {user.name.charAt(0)}
+                         {getInitials(user.name)}
                        </div>
                        <span className={`text-xs ${isSelected ? 'font-medium text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-400'}`}>{user.name}</span>
                     </div>

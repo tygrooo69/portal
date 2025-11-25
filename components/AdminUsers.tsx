@@ -75,6 +75,10 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
     </div>
   );
 
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   return (
     <div className="p-6 md:p-8 overflow-y-auto h-full">
       <div className="flex items-center justify-between mb-8">
@@ -196,7 +200,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
             <div key={user.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group hover:shadow-md transition-all">
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-full ${user.color} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
-                  {user.name.charAt(0)}
+                  {getInitials(user.name)}
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">

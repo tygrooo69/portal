@@ -297,6 +297,7 @@ const App: React.FC = () => {
     persistData(apps, documents, projects, [...tasks, task], users, comments, newNotifications);
   };
 
+  // Single Task Update
   const handleUpdateTask = (updatedTask: Task) => {
     const parentProject = projects.find(p => p.id === updatedTask.projectId);
     if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
@@ -323,6 +324,25 @@ const App: React.FC = () => {
     }
 
     persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users, comments, newNotifications);
+  };
+
+  // Multiple Task Update (Bulk)
+  const handleUpdateTasks = (updatedTasks: Task[]) => {
+    // Just verify permission for the first one as a basic check
+    if (updatedTasks.length > 0) {
+      const parentProject = projects.find(p => p.id === updatedTasks[0].projectId);
+      if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
+        alert("Vous n'avez pas les droits sur le projet pour modifier ces tâches.");
+        return;
+      }
+    }
+
+    const newTasksList = tasks.map(t => {
+      const updated = updatedTasks.find(u => u.id === t.id);
+      return updated ? updated : t;
+    });
+
+    persistData(apps, documents, projects, newTasksList, users, comments, notifications);
   };
 
   const handleDeleteTask = (id: string) => {
@@ -446,6 +466,7 @@ const App: React.FC = () => {
              onDeleteProject={handleDeleteProject}
              onAddTask={handleAddTask}
              onUpdateTask={handleUpdateTask}
+             onUpdateTasks={handleUpdateTasks} // Pass the bulk update handler
              onDeleteTask={handleDeleteTask}
              onAddComment={handleAddComment}
           />

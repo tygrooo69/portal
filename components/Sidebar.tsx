@@ -30,6 +30,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings', label: 'Paramètres', icon: Settings },
   ];
 
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .slice(0, 2)
+      .map(n => n[0])
+      .join('')
+      .toUpperCase();
+  };
+
   return (
     <div className={`flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="p-6 flex items-center justify-between">
@@ -91,8 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={onProfileClick}
               title="Modifier mon profil"
             >
-              <div className={`w-10 h-10 rounded-full ${currentUser.color} flex items-center justify-center text-white font-bold flex-shrink-0 border-2 border-white dark:border-slate-700 shadow-sm`}>
-                {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" /> : currentUser.name.charAt(0)}
+              <div className={`w-10 h-10 rounded-full ${currentUser.color} flex items-center justify-center text-white font-bold flex-shrink-0 border-2 border-white dark:border-slate-700 shadow-sm text-sm`}>
+                {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" /> : getInitials(currentUser.name)}
               </div>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">

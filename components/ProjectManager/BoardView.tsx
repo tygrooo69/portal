@@ -28,6 +28,10 @@ export const BoardView: React.FC<BoardViewProps> = ({
   onEditProject
 }) => {
   
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   // -- RENDER PROJECTS BOARD (OVERVIEW) --
   if (!activeProjectId) {
     const moveProject = (project: Project, newStatus: 'active' | 'on-hold' | 'completed') => {
@@ -61,7 +65,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
                          const user = users.find(u => u.id === mid);
                          return user ? (
                            <div key={user.id} className={`w-5 h-5 rounded-full ${user.color} border border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
-                             {user.name.charAt(0)}
+                             {getInitials(user.name)}
                            </div>
                          ) : null;
                        })}
@@ -167,7 +171,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
              {assignee ? (
                <div className="flex items-center gap-1.5" title={`Assigné à ${assignee.name}`}>
                   <div className={`w-5 h-5 rounded-full ${assignee.color} flex items-center justify-center text-[9px] text-white font-bold`}>
-                     {assignee.name.charAt(0)}
+                     {getInitials(assignee.name)}
                   </div>
                   <span className="text-[10px] text-slate-500">{assignee.name.split(' ')[0]}</span>
                </div>

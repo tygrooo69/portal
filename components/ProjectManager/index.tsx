@@ -21,6 +21,7 @@ interface ProjectManagerProps {
   onDeleteProject: (id: string) => void;
   onAddTask: (task: Task) => void;
   onUpdateTask: (task: Task) => void;
+  onUpdateTasks?: (tasks: Task[]) => void; // Optional for backward compatibility, but required for bug fix
   onDeleteTask: (id: string) => void;
   onAddComment: (comment: Comment) => void;
 }
@@ -38,6 +39,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   onDeleteProject,
   onAddTask,
   onUpdateTask,
+  onUpdateTasks,
   onDeleteTask,
   onAddComment
 }) => {
@@ -140,38 +142,72 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     setIsAddingTask(false);
   };
 
-  // --- CASCADE UPDATE LOGIC ---
-  // When a task is updated, we check if it pushes any dependent tasks
+  // --- CASCADE UPDATE LOGIC (BULK) ---
+  // Calculates all moves in memory then sends one atomic update to avoid race conditions.
   const handleTaskUpdateWithDependencies = (updatedTask: Task) => {
-    // 1. Update the main task
-    onUpdateTask(updatedTask);
+    // 1. Initialize a Map with current state of all tasks
+    const tasksMap = new Map<string, Task>();
+    tasks.forEach(t => tasksMap.set(t.id, t));
+    
+    // 2. Update the trigger task in the map
+    tasksMap.set(updatedTask.id, updatedTask);
 
-    // 2. Find immediate dependents (tasks that wait for this updatedTask)
-    const dependentTasks = tasks.filter(t => t.dependencies && t.dependencies.includes(updatedTask.id));
+    // 3. Queue for cascade calculation
+    const queue = [updatedTask];
+    const processed = new Set<string>(); // To detect circular deps and avoid infinite loops
 
-    dependentTasks.forEach(depTask => {
-      // Logic: Start Date of dependent must be > End Date of prerequisite
-      // For simplicity: newStart = prerequisite.EndDate + 0 days (or 1 day)
-      // We'll set it to start exactly after the previous one ends (continuous)
-      const prerequisiteEnd = new Date(updatedTask.endDate);
-      const dependentStart = new Date(depTask.startDate);
+    while(queue.length > 0) {
+       const current = queue.shift()!;
+       if (processed.has(current.id)) continue;
+       processed.add(current.id);
 
-      // If the dependent task starts BEFORE the prerequisite ends, we push it.
-      if (dependentStart < prerequisiteEnd) {
-         // Calculate duration to preserve it
-         const duration = getDaysDiff(depTask.startDate, depTask.endDate);
-         
-         const newStartDateStr = updatedTask.endDate; // Starts same day as finish or next day? Let's say same day (Finish-to-Start immediate)
-         // Actually, let's add 1 day for logical clarity if needed, but often Gantt allows same day handoff.
-         // Let's stick to same day handoff for now to keep it tight.
-         
-         const newEndDateStr = addDays(newStartDateStr, duration);
+       // Find tasks that depend on 'current'
+       const dependents = tasks.filter(t => t.dependencies?.includes(current.id));
 
-         // Recursively update this dependent task
-         const newDepTask = { ...depTask, startDate: newStartDateStr, endDate: newEndDateStr };
-         handleTaskUpdateWithDependencies(newDepTask);
-      }
+       dependents.forEach(dep => {
+          // Get the latest state of the dependent task from the map (in case it was already moved)
+          const depInMemory = tasksMap.get(dep.id)!;
+          
+          const currentEnd = new Date(current.endDate);
+          const depStart = new Date(depInMemory.startDate);
+          
+          // Normalize to midnight to compare dates only
+          currentEnd.setHours(0,0,0,0);
+          depStart.setHours(0,0,0,0);
+
+          // Logic: Dependent Start must be >= Prerequisite End
+          // User Requirement: No gap (Start = End), so if Dep Start < Prerequisite End, we push it.
+          if (depStart < currentEnd) {
+             const duration = getDaysDiff(depInMemory.startDate, depInMemory.endDate);
+             
+             // New Start = Current End (Zero gap)
+             const newStartDateStr = current.endDate; 
+             const newEndDateStr = addDays(newStartDateStr, duration);
+
+             const newDepTask = { ...depInMemory, startDate: newStartDateStr, endDate: newEndDateStr };
+             
+             // Update in memory and push to queue to check its own dependents
+             tasksMap.set(newDepTask.id, newDepTask);
+             queue.push(newDepTask);
+          }
+       });
+    }
+
+    // 4. Collect all tasks that have actually changed
+    const changedTasks = Array.from(tasksMap.values()).filter(t => {
+       const original = tasks.find(ot => ot.id === t.id);
+       return JSON.stringify(original) !== JSON.stringify(t);
     });
+
+    // 5. Commit changes
+    if (changedTasks.length > 0) {
+      if (onUpdateTasks) {
+        onUpdateTasks(changedTasks);
+      } else {
+        // Fallback for safety (though handleUpdateTasks should exist)
+        changedTasks.forEach(t => onUpdateTask(t));
+      }
+    }
   };
 
   // --- DELETE HANDLERS WITH CONFIRMATION ---
@@ -252,6 +288,11 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     return users.filter(u => proj.members!.includes(u.id));
   };
 
+  // Helper for initials
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   return (
     <div className="flex h-full bg-slate-50 dark:bg-slate-950 relative">
       <style>{`
@@ -319,7 +360,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                        if (!user) return null;
                        return (
                          <div key={user.id} className={`w-6 h-6 rounded-full ${user.color} border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
-                           {user.name.charAt(0)}
+                           {getInitials(user.name)}
                          </div>
                        );
                      })}

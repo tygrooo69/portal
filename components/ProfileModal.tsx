@@ -27,13 +27,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onSave,
     onClose();
   };
 
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   return (
     <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800 p-6 scale-100 animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-start mb-6">
           <div className="flex items-center gap-3">
              <div className={`w-10 h-10 rounded-full ${formData.color} flex items-center justify-center text-white font-bold shadow-md`}>
-                {formData.name.charAt(0)}
+                {getInitials(formData.name)}
              </div>
              <div>
                 <h2 className="text-xl font-bold text-slate-800 dark:text-white">Mon Profil</h2>

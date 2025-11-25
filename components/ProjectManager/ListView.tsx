@@ -12,6 +12,11 @@ interface ListViewProps {
 }
 
 export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, onDelete, onEdit, onUpdateTaskStatus }) => {
+  
+  const getInitials = (name: string) => {
+    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
       <table className="w-full text-sm text-left">
@@ -61,7 +66,7 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
                         if(!u) return null;
                         return (
                           <div key={u.id} className={`w-6 h-6 rounded-full ${u.color} border border-white dark:border-slate-800 flex items-center justify-center text-[9px] text-white font-bold`} title={u.name}>
-                            {u.name.charAt(0)}
+                            {getInitials(u.name)}
                           </div>
                         );
                       })}
@@ -75,7 +80,7 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
                  return (
                    <div className="flex items-center gap-2">
                       <div className={`w-6 h-6 rounded-full ${assignee.color} flex items-center justify-center text-[10px] text-white font-bold`}>
-                        {assignee.name.charAt(0)}
+                        {getInitials(assignee.name)}
                       </div>
                       <span className="text-slate-700 dark:text-slate-300">{assignee.name}</span>
                    </div>
