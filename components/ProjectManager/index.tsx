@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter } from 'lucide-react';
 import { Project, Task, User } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
@@ -39,6 +39,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 }) => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialActiveProjectId);
   const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list'>('board');
+  const [filterUserId, setFilterUserId] = useState<string>('all');
   
   // Modals State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -67,6 +68,12 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     }
   }, [initialEditingTaskId, tasks]);
 
+  // --- FILTER LOGIC ---
+  const filteredProjects = useMemo(() => {
+    if (filterUserId === 'all') return projects;
+    return projects.filter(p => p.members && p.members.includes(filterUserId));
+  }, [projects, filterUserId]);
+
   const activeProject = projects.find(p => p.id === activeProjectId);
   const projectTasks = activeProjectId ? tasks.filter(t => t.projectId === activeProjectId) : [];
 
@@ -84,6 +91,12 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       endDate: partialProject.endDate || new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
       members: partialProject.members || []
     };
+
+    // Auto-assign current user as member so they can see the project immediately
+    if (currentUser && newProject.members && !newProject.members.includes(currentUser.id)) {
+        newProject.members.push(currentUser.id);
+    }
+
     onAddProject(newProject);
     setActiveProjectId(newProject.id);
     setIsAddingProject(false);
@@ -122,9 +135,9 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       const filename = activeProject ? `${activeProject.name}_tasks.csv` : 'tasks.csv';
       downloadCsv(csvContent, filename);
     } else {
-      if (projects.length === 0) return;
+      if (filteredProjects.length === 0) return;
       csvContent += "Nom Projet;Description;Statut;Priorité;Date Début;Date Fin;Membres;Durée (jours)\n";
-      projects.forEach(proj => {
+      filteredProjects.forEach(proj => {
         const start = proj.startDate || new Date().toISOString().split('T')[0];
         const end = proj.endDate || new Date().toISOString().split('T')[0];
         const duration = getDaysDiff(start, end);
@@ -136,6 +149,14 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       });
       downloadCsv(csvContent, 'projets_overview.csv');
     }
+  };
+
+  // Helper to filter users based on project membership for Task Assignment
+  const getProjectMembers = (projId: string | null) => {
+    if (!projId) return [];
+    const proj = projects.find(p => p.id === projId);
+    if (!proj || !proj.members) return [];
+    return users.filter(u => proj.members!.includes(u.id));
   };
 
   return (
@@ -152,7 +173,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       `}</style>
       
       <Sidebar 
-        projects={projects}
+        projects={filteredProjects}
         activeProjectId={activeProjectId}
         canCreate={!!currentUser}
         onSelectProject={setActiveProjectId}
@@ -169,7 +190,23 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                   <LayoutGrid className="text-slate-400" /> Vue d'ensemble
                </h1>
-               <p className="text-slate-500 text-sm mt-1">{projects.length} projets au total</p>
+               <div className="flex items-center gap-2 mt-1">
+                 <p className="text-slate-500 text-sm">{filteredProjects.length} projets</p>
+                 {/* User Filter Dropdown */}
+                 <div className="flex items-center gap-1.5 ml-4 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <Filter size={12} className="text-slate-400" />
+                    <select 
+                      value={filterUserId} 
+                      onChange={(e) => setFilterUserId(e.target.value)}
+                      className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-300 outline-none cursor-pointer"
+                    >
+                      <option value="all">Tous les utilisateurs</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                 </div>
+               </div>
              </div>
            ) : (
              <div onClick={() => activeProject && setEditingProject(activeProject)} className="cursor-pointer group">
@@ -227,7 +264,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           {viewMode === 'board' && (
              <BoardView 
                tasks={projectTasks} 
-               projects={projects}
+               projects={filteredProjects}
                users={users}
                activeProjectId={activeProjectId}
                onUpdateTask={onUpdateTask}
@@ -241,7 +278,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
           {viewMode === 'gantt' && (
              <GanttView 
-               items={activeProjectId ? projectTasks : projects}
+               items={activeProjectId ? projectTasks : filteredProjects}
                isProjects={!activeProjectId}
                onUpdateTask={onUpdateTask}
                onUpdateProject={onUpdateProject}
@@ -251,7 +288,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
           {viewMode === 'list' && (
             <ListView 
-               items={activeProjectId ? projectTasks : projects}
+               items={activeProjectId ? projectTasks : filteredProjects}
                isProjects={!activeProjectId}
                users={users}
                onDelete={activeProjectId ? onDeleteTask : onDeleteProject}
@@ -269,7 +306,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         <TaskModal 
            task={null}
            isNew={true}
-           users={users}
+           // Filter users: only show members of the current active project
+           users={getProjectMembers(activeProjectId)}
            onSave={handleSaveNewTask} 
            onClose={() => setIsAddingTask(false)} 
         />
@@ -279,7 +317,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       {editingTask && (
         <TaskModal 
           task={editingTask}
-          users={users}
+          // Filter users: only show members of the project this task belongs to
+          users={getProjectMembers(editingTask.projectId)}
           onSave={(updated) => { onUpdateTask(updated as Task); }}
           onDelete={onDeleteTask}
           onClose={() => { setEditingTask(null); }}

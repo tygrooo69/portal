@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { AIAssistant } from './components/AIAssistant';
@@ -7,6 +7,7 @@ import { AdminDocuments } from './components/AdminDocuments';
 import { AdminUsers } from './components/AdminUsers';
 import { Settings } from './components/Settings';
 import { LoginModal } from './components/LoginModal';
+import { ProfileModal } from './components/ProfileModal';
 import { ProjectManager } from './components/ProjectManager/index';
 import { ViewMode, AppItem, DocumentItem, Project, Task, User } from './types';
 import { Moon, Sun } from 'lucide-react';
@@ -34,6 +35,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
   const [targetProjectId, setTargetProjectId] = useState<string | null>(null);
   const [targetTaskId, setTargetTaskId] = useState<string | null>(null);
@@ -119,6 +121,23 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
+  // --- ACCESS CONTROL LOGIC ---
+  
+  // Filter projects: User sees only projects where they are a member
+  // If no user is logged in, they see nothing (Strict privacy)
+  const authorizedProjects = useMemo(() => {
+    if (!currentUser) return [];
+    return projects.filter(p => p.members && p.members.includes(currentUser.id));
+  }, [projects, currentUser]);
+
+  // Filter tasks: User sees tasks only for authorized projects
+  const authorizedTasks = useMemo(() => {
+    if (!currentUser) return [];
+    const authorizedProjectIds = authorizedProjects.map(p => p.id);
+    return tasks.filter(t => authorizedProjectIds.includes(t.projectId));
+  }, [tasks, authorizedProjects, currentUser]);
+
+
   // Unified Save Function
   const persistData = async (
     newApps: AppItem[], 
@@ -199,14 +218,40 @@ const App: React.FC = () => {
 
   // --- Project Handlers ---
   const handleAddProject = (project: Project) => {
+    // Current user is already added in ProjectManager/index.tsx
     persistData(apps, documents, [...projects, project], tasks, users);
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
+    // SECURITY CHECK: Can only update if member
+    if (currentUser) {
+       const existing = projects.find(p => p.id === updatedProject.id);
+       // Allow update if user was a member of the original project
+       if (existing && existing.members && !existing.members.includes(currentUser.id)) {
+         alert("Vous n'êtes pas autorisé à modifier ce projet.");
+         return;
+       }
+    } else {
+       // Should not happen due to UI hiding, but safeguard
+       return; 
+    }
+
     persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users);
   };
 
   const handleDeleteProject = (id: string) => {
+    // SECURITY CHECK
+    const project = projects.find(p => p.id === id);
+    if (currentUser && project && project.members && !project.members.includes(currentUser.id)) {
+      alert("Vous n'êtes pas autorisé à supprimer ce projet.");
+      return;
+    }
+
+    // CONFIRMATION
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer le projet "${project?.name}" et toutes ses tâches ? Cette action est irréversible.`)) {
+      return;
+    }
+
     // Also delete tasks associated with this project
     persistData(
       apps, 
@@ -222,10 +267,32 @@ const App: React.FC = () => {
   };
 
   const handleUpdateTask = (updatedTask: Task) => {
+    // SECURITY CHECK: Check if user is member of the parent project
+    const parentProject = projects.find(p => p.id === updatedTask.projectId);
+    if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
+       alert("Vous n'avez pas les droits sur le projet parent pour modifier cette tâche.");
+       return;
+    }
+
     persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users);
   };
 
   const handleDeleteTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    // SECURITY CHECK
+    const parentProject = projects.find(p => p.id === task.projectId);
+    if (currentUser && parentProject && parentProject.members && !parentProject.members.includes(currentUser.id)) {
+       alert("Vous n'avez pas les droits pour supprimer cette tâche.");
+       return;
+    }
+
+    // CONFIRMATION
+    if (!window.confirm("Voulez-vous vraiment supprimer cette tâche ?")) {
+      return;
+    }
+
     persistData(apps, documents, projects, tasks.filter(t => t.id !== id), users);
   };
 
@@ -261,6 +328,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setCurrentUser(null);
     sessionStorage.removeItem('lumina_current_user');
+    setView('dashboard'); // Redirect to dashboard on logout
   };
 
   const handleProjectClickFromDashboard = (projectId: string) => {
@@ -292,8 +360,8 @@ const App: React.FC = () => {
           <Dashboard 
             apps={apps} 
             documents={documents} 
-            projects={projects} 
-            tasks={tasks}
+            projects={authorizedProjects} 
+            tasks={authorizedTasks}
             currentUser={currentUser}
             onProjectClick={handleProjectClickFromDashboard} 
             onTaskClick={handleTaskClickFromDashboard}
@@ -303,8 +371,8 @@ const App: React.FC = () => {
       case 'projects':
         return (
           <ProjectManager 
-             projects={projects}
-             tasks={tasks}
+             projects={authorizedProjects}
+             tasks={authorizedTasks}
              users={users}
              currentUser={currentUser}
              initialActiveProjectId={targetProjectId}
@@ -369,7 +437,7 @@ const App: React.FC = () => {
            <Dashboard 
              apps={apps} 
              documents={documents} 
-             projects={projects} 
+             projects={authorizedProjects} 
              currentUser={currentUser} 
            />
         );
@@ -386,6 +454,7 @@ const App: React.FC = () => {
         currentUser={currentUser}
         onLoginClick={() => setIsLoginModalOpen(true)}
         onLogoutClick={handleLogout}
+        onProfileClick={() => setIsProfileModalOpen(true)}
       />
       
       {isLoginModalOpen && (
@@ -393,6 +462,14 @@ const App: React.FC = () => {
            users={users}
            onLogin={handleLogin}
            onClose={() => setIsLoginModalOpen(false)}
+        />
+      )}
+
+      {isProfileModalOpen && currentUser && (
+        <ProfileModal
+          currentUser={currentUser}
+          onSave={handleUpdateUser}
+          onClose={() => setIsProfileModalOpen(false)}
         />
       )}
 

@@ -10,6 +10,7 @@ interface SidebarProps {
   currentUser: User | null;
   onLoginClick: () => void;
   onLogoutClick: () => void;
+  onProfileClick?: () => void; // Ajout prop
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -19,7 +20,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   toggleCollapse, 
   currentUser,
   onLoginClick,
-  onLogoutClick
+  onLogoutClick,
+  onProfileClick
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -81,18 +83,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* User Profile Section */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800">
         {currentUser ? (
-          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50`}>
-            <div className={`w-10 h-10 rounded-full ${currentUser.color} flex items-center justify-center text-white font-bold flex-shrink-0 border-2 border-white dark:border-slate-700 shadow-sm`}>
-              {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" /> : currentUser.name.charAt(0)}
-            </div>
-            {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{currentUser.name}</p>
-                <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 group hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors`}>
+            
+            {/* Clickable Profile Area */}
+            <div 
+              className={`flex items-center flex-1 min-w-0 gap-3 cursor-pointer ${isCollapsed ? 'justify-center' : ''}`}
+              onClick={onProfileClick}
+              title="Modifier mon profil"
+            >
+              <div className={`w-10 h-10 rounded-full ${currentUser.color} flex items-center justify-center text-white font-bold flex-shrink-0 border-2 border-white dark:border-slate-700 shadow-sm`}>
+                {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" /> : currentUser.name.charAt(0)}
               </div>
-            )}
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{currentUser.name}</p>
+                  <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Logout Button */}
             {!isCollapsed && (
-              <button onClick={onLogoutClick} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Se déconnecter">
+              <button 
+                onClick={(e) => { e.stopPropagation(); onLogoutClick(); }} 
+                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" 
+                title="Se déconnecter"
+              >
                 <LogOut size={18} />
               </button>
             )}
