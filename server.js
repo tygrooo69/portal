@@ -62,7 +62,9 @@ async function initDB() {
         email VARCHAR(255),
         password VARCHAR(255),
         avatar TEXT,
-        color VARCHAR(50)
+        color VARCHAR(50),
+        role VARCHAR(20) DEFAULT 'user',
+        service VARCHAR(100)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -127,25 +129,29 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Time Entries Table (NEW)
+    // Timesheets Table (Updated with managerId and isProcessed)
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS time_entries (
+      CREATE TABLE IF NOT EXISTS timesheets (
         id VARCHAR(255) PRIMARY KEY,
         userId VARCHAR(255),
-        projectId VARCHAR(255),
-        startTime VARCHAR(50),
-        endTime VARCHAR(50),
-        description TEXT,
-        type VARCHAR(20),
-        INDEX idx_user_time (userId)
+        managerId VARCHAR(255),
+        weekStartDate VARCHAR(20),
+        status VARCHAR(20),
+        entries LONGTEXT,
+        rejectionReason TEXT,
+        submittedAt VARCHAR(50),
+        isProcessed BOOLEAN DEFAULT FALSE,
+        INDEX idx_user_week (userId, weekStartDate),
+        INDEX idx_manager (managerId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Leave Requests Table (NEW)
+    // Leave Requests Table (Updated with managerId and isProcessed)
     await conn.query(`
       CREATE TABLE IF NOT EXISTS leave_requests (
         id VARCHAR(255) PRIMARY KEY,
         userId VARCHAR(255),
+        managerId VARCHAR(255),
         type VARCHAR(20),
         startDate VARCHAR(50),
         endDate VARCHAR(50),
@@ -154,7 +160,9 @@ async function initDB() {
         status VARCHAR(20),
         rejectionReason TEXT,
         createdAt VARCHAR(50),
-        INDEX idx_user_leave (userId)
+        isProcessed BOOLEAN DEFAULT FALSE,
+        INDEX idx_user_leave (userId),
+        INDEX idx_manager_leave (managerId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -215,7 +223,7 @@ const getDefaultData = () => ({
   users: [],
   comments: [],
   notifications: [],
-  timeEntries: [],
+  timesheets: [],
   leaveRequests: [],
   apiKey: "", 
   adminPassword: "admin",
@@ -234,8 +242,8 @@ app.get('/api/data', async (req, res) => {
       const [users] = await pool.query('SELECT * FROM users');
       const [comments] = await pool.query('SELECT * FROM comments');
       const [notificationsRows] = await pool.query('SELECT * FROM notifications');
-      const [timeEntries] = await pool.query('SELECT * FROM time_entries');
-      const [leaveRequests] = await pool.query('SELECT * FROM leave_requests');
+      const [timesheetsRows] = await pool.query('SELECT * FROM timesheets');
+      const [leaveRequestsRows] = await pool.query('SELECT * FROM leave_requests');
       const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
       
       const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin', logo: '' };
@@ -254,7 +262,18 @@ app.get('/api/data', async (req, res) => {
 
       const notifications = notificationsRows.map(n => ({
         ...n,
-        isRead: Boolean(n.isRead) // Ensure boolean
+        isRead: Boolean(n.isRead)
+      }));
+
+      const timesheets = timesheetsRows.map(t => ({
+        ...t,
+        entries: t.entries ? JSON.parse(t.entries) : [],
+        isProcessed: Boolean(t.isProcessed)
+      }));
+
+      const leaveRequests = leaveRequestsRows.map(l => ({
+        ...l,
+        isProcessed: Boolean(l.isProcessed)
       }));
 
       res.json({
@@ -265,7 +284,7 @@ app.get('/api/data', async (req, res) => {
         users,
         comments,
         notifications,
-        timeEntries,
+        timesheets,
         leaveRequests,
         apiKey: settings.apiKey,
         adminPassword: settings.adminPassword,
@@ -286,7 +305,7 @@ app.get('/api/data', async (req, res) => {
 });
 
 app.post('/api/data', async (req, res) => {
-  const { apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, apiKey, adminPassword, logo } = req.body;
+  const { apps, documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests, apiKey, adminPassword, logo } = req.body;
 
   if (useMySQL && pool) {
     const conn = await pool.getConnection();
@@ -335,8 +354,8 @@ app.post('/api/data', async (req, res) => {
       // Users
       await conn.query('DELETE FROM users');
       if (users && users.length > 0) {
-        const userValues = users.map(u => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color]);
-        await conn.query('INSERT INTO users (id, name, email, password, avatar, color) VALUES ?', [userValues]);
+        const userValues = users.map(u => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color, u.role || 'user', u.service || '']);
+        await conn.query('INSERT INTO users (id, name, email, password, avatar, color, role, service) VALUES ?', [userValues]);
       }
 
       // Comments
@@ -353,18 +372,20 @@ app.post('/api/data', async (req, res) => {
         await conn.query('INSERT INTO notifications (id, userId, type, message, isRead, createdAt, linkProjectId, linkTaskId) VALUES ?', [notifValues]);
       }
 
-      // Time Entries
-      await conn.query('DELETE FROM time_entries');
-      if (timeEntries && timeEntries.length > 0) {
-        const timeValues = timeEntries.map(t => [t.id, t.userId, t.projectId || null, t.startTime, t.endTime || null, t.description || '', t.type]);
-        await conn.query('INSERT INTO time_entries (id, userId, projectId, startTime, endTime, description, type) VALUES ?', [timeValues]);
+      // Timesheets
+      await conn.query('DELETE FROM timesheets');
+      if (timesheets && timesheets.length > 0) {
+        const tsValues = timesheets.map(t => [
+          t.id, t.userId, t.managerId || null, t.weekStartDate, t.status, JSON.stringify(t.entries || []), t.rejectionReason || '', t.submittedAt || null, t.isProcessed || false
+        ]);
+        await conn.query('INSERT INTO timesheets (id, userId, managerId, weekStartDate, status, entries, rejectionReason, submittedAt, isProcessed) VALUES ?', [tsValues]);
       }
 
       // Leave Requests
       await conn.query('DELETE FROM leave_requests');
       if (leaveRequests && leaveRequests.length > 0) {
-        const leaveValues = leaveRequests.map(l => [l.id, l.userId, l.type, l.startDate, l.endDate, l.halfDay || null, l.reason || '', l.status, l.rejectionReason || '', l.createdAt]);
-        await conn.query('INSERT INTO leave_requests (id, userId, type, startDate, endDate, halfDay, reason, status, rejectionReason, createdAt) VALUES ?', [leaveValues]);
+        const leaveValues = leaveRequests.map(l => [l.id, l.userId, l.managerId || null, l.type, l.startDate, l.endDate, l.halfDay || null, l.reason || '', l.status, l.rejectionReason || '', l.createdAt, l.isProcessed || false]);
+        await conn.query('INSERT INTO leave_requests (id, userId, managerId, type, startDate, endDate, halfDay, reason, status, rejectionReason, createdAt, isProcessed) VALUES ?', [leaveValues]);
       }
 
       await conn.commit();
@@ -390,7 +411,7 @@ app.post('/api/data', async (req, res) => {
         users: users || [],
         comments: comments || [],
         notifications: notifications || [],
-        timeEntries: timeEntries || [],
+        timesheets: timesheets || [],
         leaveRequests: leaveRequests || [],
         apiKey, 
         adminPassword,

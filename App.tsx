@@ -10,7 +10,7 @@ import { LoginModal } from './components/LoginModal';
 import { ProfileModal } from './components/ProfileModal';
 import { ProjectManager } from './components/ProjectManager/index';
 import { TimeManager } from './components/TimeManager';
-import { ViewMode, AppItem, DocumentItem, Project, Task, User, Comment, Notification, TimeEntry, LeaveRequest } from './types';
+import { ViewMode, AppItem, DocumentItem, Project, Task, User, Comment, Notification, Timesheet, LeaveRequest } from './types';
 import { Moon, Sun } from 'lucide-react';
 import { api } from './services/api';
 
@@ -38,7 +38,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
   // Time & Leave Management
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -73,7 +73,7 @@ const App: React.FC = () => {
         if (serverData.notifications) setNotifications(serverData.notifications);
         
         // Time & Leave
-        if (serverData.timeEntries) setTimeEntries(serverData.timeEntries);
+        if (serverData.timesheets) setTimesheets(serverData.timesheets);
         if (serverData.leaveRequests) setLeaveRequests(serverData.leaveRequests);
 
         if (serverData.apiKey) setApiKey(serverData.apiKey);
@@ -168,7 +168,7 @@ const App: React.FC = () => {
     newUsers: User[],
     newComments: Comment[],
     newNotifications: Notification[],
-    newTimeEntries: TimeEntry[],
+    newTimesheets: Timesheet[],
     newLeaveRequests: LeaveRequest[],
     newKey?: string, 
     newPwd?: string,
@@ -186,7 +186,7 @@ const App: React.FC = () => {
     setUsers(newUsers);
     setComments(newComments);
     setNotifications(newNotifications);
-    setTimeEntries(newTimeEntries);
+    setTimesheets(newTimesheets);
     setLeaveRequests(newLeaveRequests);
 
     if (newKey !== undefined) setApiKey(newKey);
@@ -202,7 +202,7 @@ const App: React.FC = () => {
       newUsers || [],
       newComments || [],
       newNotifications || [],
-      newTimeEntries || [],
+      newTimesheets || [],
       newLeaveRequests || [],
       keyToSave, 
       pwdToSave,
@@ -226,40 +226,40 @@ const App: React.FC = () => {
   };
 
   const handleSaveApiKey = (key: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, key, undefined, undefined);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests, key, undefined, undefined);
   };
 
   const handleSaveAdminPassword = (password: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, undefined, password, undefined);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests, undefined, password, undefined);
   };
 
   const handleSaveLogo = (newLogo: string) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests, undefined, undefined, newLogo);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests, undefined, undefined, newLogo);
   };
 
   const handleAddApp = (app: AppItem) => {
-    persistData([...apps, app], documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData([...apps, app], documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleUpdateApp = (updatedApp: AppItem) => {
-    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps.map(a => a.id === updatedApp.id ? updatedApp : a), documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleDeleteApp = (id: string) => {
-    persistData(apps.filter(a => a.id !== id), documents, projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps.filter(a => a.id !== id), documents, projects, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleAddDocuments = (newDocs: DocumentItem[]) => {
-    persistData(apps, [...documents, ...newDocs], projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, [...documents, ...newDocs], projects, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleDeleteDocument = (id: string) => {
-    persistData(apps, documents.filter(d => d.id !== id), projects, tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents.filter(d => d.id !== id), projects, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   // --- Project Handlers ---
   const handleAddProject = (project: Project) => {
-    persistData(apps, documents, [...projects, project], tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, [...projects, project], tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
@@ -271,7 +271,7 @@ const App: React.FC = () => {
        }
     } else { return; }
 
-    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleDeleteProject = (id: string) => {
@@ -289,7 +289,7 @@ const App: React.FC = () => {
       users,
       comments.filter(c => tasks.find(t => t.id === c.taskId && t.projectId === id)),
       notifications,
-      timeEntries,
+      timesheets,
       leaveRequests
     );
   };
@@ -311,7 +311,7 @@ const App: React.FC = () => {
        };
        newNotifications.push(notif);
     }
-    persistData(apps, documents, projects, [...tasks, task], users, comments, newNotifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, [...tasks, task], users, comments, newNotifications, timesheets, leaveRequests);
   };
 
   const handleUpdateTask = (updatedTask: Task) => {
@@ -338,7 +338,7 @@ const App: React.FC = () => {
        newNotifications.push(notif);
     }
 
-    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users, comments, newNotifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks.map(t => t.id === updatedTask.id ? updatedTask : t), users, comments, newNotifications, timesheets, leaveRequests);
   };
 
   const handleUpdateTasks = (updatedTasks: Task[]) => {
@@ -353,7 +353,7 @@ const App: React.FC = () => {
       const updated = updatedTasks.find(u => u.id === t.id);
       return updated ? updated : t;
     });
-    persistData(apps, documents, projects, newTasksList, users, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, newTasksList, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleDeleteTask = (id: string) => {
@@ -364,31 +364,31 @@ const App: React.FC = () => {
        alert("Vous n'avez pas les droits pour supprimer cette tâche.");
        return;
     }
-    persistData(apps, documents, projects, tasks.filter(t => t.id !== id), users, comments.filter(c => c.taskId !== id), notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks.filter(t => t.id !== id), users, comments.filter(c => c.taskId !== id), notifications, timesheets, leaveRequests);
   };
 
   const handleAddComment = (comment: Comment) => {
-    persistData(apps, documents, projects, tasks, users, [...comments, comment], notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, users, [...comments, comment], notifications, timesheets, leaveRequests);
   };
 
   const handleMarkNotificationRead = (notifId: string) => {
     const newNotifs = notifications.map(n => n.id === notifId ? { ...n, isRead: true } : n);
-    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timesheets, leaveRequests);
   };
 
   const handleMarkAllNotificationsRead = () => {
     if (!currentUser) return;
     const newNotifs = notifications.map(n => n.userId === currentUser.id ? { ...n, isRead: true } : n);
-    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timesheets, leaveRequests);
   };
 
   const handleAddUser = (user: User) => {
-    persistData(apps, documents, projects, tasks, [...users, user], comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, [...users, user], comments, notifications, timesheets, leaveRequests);
   };
 
   const handleUpdateUser = (updatedUser: User) => {
     const newUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
-    persistData(apps, documents, projects, tasks, newUsers, comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, newUsers, comments, notifications, timesheets, leaveRequests);
     if (currentUser && currentUser.id === updatedUser.id) {
        setCurrentUser(updatedUser);
        sessionStorage.setItem('lumina_current_user', JSON.stringify(updatedUser));
@@ -396,25 +396,65 @@ const App: React.FC = () => {
   };
 
   const handleDeleteUser = (id: string) => {
-    persistData(apps, documents, projects, tasks, users.filter(u => u.id !== id), comments, notifications, timeEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, users.filter(u => u.id !== id), comments, notifications, timesheets, leaveRequests);
     if (currentUser && currentUser.id === id) {
       handleLogout();
     }
   };
 
   // --- Time Manager Handlers ---
-  const handleClockIn = (entry: TimeEntry) => {
-    persistData(apps, documents, projects, tasks, users, comments, notifications, [...timeEntries, entry], leaveRequests);
-  };
+  const handleSaveTimesheet = (sheet: Timesheet) => {
+    // If updating an existing sheet (by week and user), replace it
+    const existingIndex = timesheets.findIndex(t => t.id === sheet.id);
+    let newTimesheets = [...timesheets];
+    if (existingIndex >= 0) {
+      newTimesheets[existingIndex] = sheet;
+    } else {
+      newTimesheets.push(sheet);
+    }
+    
+    // Notifications for validation
+    let newNotifs = [...notifications];
+    if (sheet.status === 'submitted') {
+       // Notify Manager
+       if (sheet.managerId) {
+         newNotifs.push({
+           id: Date.now() + Math.random().toString(),
+           userId: sheet.managerId,
+           type: 'timesheet_status',
+           message: `${currentUser?.name} a soumis une feuille d'heures.`,
+           isRead: false,
+           createdAt: new Date().toISOString()
+         });
+       }
+    } else if (sheet.status === 'approved' || sheet.status === 'rejected') {
+       // Notify User
+       newNotifs.push({
+         id: Date.now() + Math.random().toString(),
+         userId: sheet.userId,
+         type: 'timesheet_status',
+         message: `Votre feuille d'heures a été ${sheet.status === 'approved' ? 'validée' : 'refusée'}.`,
+         isRead: false,
+         createdAt: new Date().toISOString()
+       });
+    }
 
-  const handleClockOut = (entryId: string, endTime: string) => {
-    const newEntries = timeEntries.map(e => e.id === entryId ? { ...e, endTime } : e);
-    persistData(apps, documents, projects, tasks, users, comments, notifications, newEntries, leaveRequests);
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, newTimesheets, leaveRequests);
   };
 
   const handleAddLeaveRequest = (request: LeaveRequest) => {
-    // Notify admins (simplified to all users for demo, in real app filter for admins)
-    persistData(apps, documents, projects, tasks, users, comments, notifications, timeEntries, [...leaveRequests, request]);
+    let newNotifs = [...notifications];
+    if (request.managerId) {
+         newNotifs.push({
+           id: Date.now() + Math.random().toString(),
+           userId: request.managerId,
+           type: 'leave_request',
+           message: `${currentUser?.name} a fait une demande de congé.`,
+           isRead: false,
+           createdAt: new Date().toISOString()
+         });
+    }
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timesheets, [...leaveRequests, request]);
   };
 
   const handleUpdateLeaveRequest = (request: LeaveRequest) => {
@@ -431,7 +471,7 @@ const App: React.FC = () => {
          createdAt: new Date().toISOString()
        });
     }
-    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timeEntries, newReqs);
+    persistData(apps, documents, projects, tasks, users, comments, newNotifs, timesheets, newReqs);
   };
 
   // --- Login / Logout ---
@@ -512,10 +552,9 @@ const App: React.FC = () => {
             currentUser={currentUser}
             users={users}
             projects={authorizedProjects}
-            timeEntries={timeEntries}
+            timesheets={timesheets}
             leaveRequests={leaveRequests}
-            onClockIn={handleClockIn}
-            onClockOut={handleClockOut}
+            onSaveTimesheet={handleSaveTimesheet}
             onAddLeaveRequest={handleAddLeaveRequest}
             onUpdateLeaveRequest={handleUpdateLeaveRequest}
           />

@@ -22,14 +22,12 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // New password field
-  avatar?: string; // URL or initials
-  color: string; // Tailwind color class for fallback
-  leaveBalance?: {
-    paid: number; // Congés Payés
-    rtt: number;
-    sick: number;
-  };
+  password?: string;
+  avatar?: string;
+  color: string;
+  // New fields for hierarchical management
+  role: 'admin' | 'assistant' | 'user';
+  service?: string; // e.g., "Maçonnerie", "Electricité", "Administratif"
 }
 
 export interface Project {
@@ -38,11 +36,11 @@ export interface Project {
   description?: string;
   color: string;
   createdAt: string;
-  startDate?: string; // YYYY-MM-DD
-  endDate?: string;   // YYYY-MM-DD
+  startDate?: string;
+  endDate?: string;
   priority?: 'low' | 'medium' | 'high';
   status?: 'active' | 'completed' | 'on-hold';
-  members?: string[]; // Array of User IDs
+  members?: string[];
 }
 
 export interface Subtask {
@@ -57,12 +55,12 @@ export interface Task {
   title: string;
   description?: string;
   status: 'todo' | 'in-progress' | 'done';
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
+  startDate: string;
+  endDate: string;
   priority: 'low' | 'medium' | 'high';
-  assignee?: string; // User ID
-  subtasks?: Subtask[]; // Checklist
-  dependencies?: string[]; // Array of Task IDs that must finish before this task starts
+  assignee?: string;
+  subtasks?: Subtask[];
+  dependencies?: string[];
 }
 
 export interface Comment {
@@ -70,13 +68,13 @@ export interface Comment {
   taskId: string;
   userId: string;
   text: string;
-  createdAt: string; // ISO String
+  createdAt: string;
 }
 
 export interface Notification {
   id: string;
   userId: string;
-  type: 'assignment' | 'deadline' | 'mention' | 'leave_request' | 'leave_status';
+  type: 'assignment' | 'deadline' | 'mention' | 'leave_request' | 'leave_status' | 'timesheet_status';
   message: string;
   isRead: boolean;
   createdAt: string;
@@ -93,27 +91,40 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
-export interface TimeEntry {
+// New Structure for Weekly Timesheets
+export interface TimesheetEntry {
+  id: string;
+  businessId: string; // Numéro d'affaire
+  zone: string;       // N° Zone
+  site: string;       // Nom chantier
+  hours: number[];    // Array of 7 numbers (Mon-Sun)
+}
+
+export interface Timesheet {
   id: string;
   userId: string;
-  projectId?: string; // Optional link to a project
-  startTime: string; // ISO String
-  endTime?: string; // ISO String (null if currently running)
-  description?: string;
-  type: 'work' | 'break';
+  managerId?: string; // ID du responsable sélectionné
+  weekStartDate: string; // YYYY-MM-DD (Monday)
+  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  entries: TimesheetEntry[];
+  rejectionReason?: string;
+  submittedAt?: string;
+  isProcessed?: boolean; // Traité par l'assistante
 }
 
 export interface LeaveRequest {
   id: string;
   userId: string;
+  managerId?: string; // ID du responsable sélectionné
   type: 'paid' | 'rtt' | 'sick' | 'unpaid';
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  halfDay?: 'morning' | 'afternoon' | 'none'; // For single day requests
+  startDate: string;
+  endDate: string;
+  halfDay?: 'morning' | 'afternoon' | 'none';
   reason?: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
   createdAt: string;
+  isProcessed?: boolean; // Traité par l'assistante
 }
 
 export type ViewMode = 'dashboard' | 'projects' | 'apps' | 'settings' | 'ai-chat' | 'admin-apps' | 'admin-docs' | 'admin-users' | 'time-manager';

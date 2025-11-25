@@ -1,4 +1,4 @@
-import { AppItem, DocumentItem, Project, Task, User, Comment, Notification, TimeEntry, LeaveRequest } from '../types';
+import { AppItem, DocumentItem, Project, Task, User, Comment, Notification, Timesheet, LeaveRequest } from '../types';
 
 interface StorageData {
   apps: AppItem[];
@@ -8,7 +8,7 @@ interface StorageData {
   users?: User[];
   comments?: Comment[];
   notifications?: Notification[];
-  timeEntries?: TimeEntry[];
+  timesheets?: Timesheet[];
   leaveRequests?: LeaveRequest[];
   apiKey?: string;
   adminPassword?: string;
@@ -38,7 +38,7 @@ export const api = {
     users: User[],
     comments: Comment[],
     notifications: Notification[],
-    timeEntries: TimeEntry[],
+    timesheets: Timesheet[],
     leaveRequests: LeaveRequest[],
     apiKey?: string, 
     adminPassword?: string,
@@ -58,7 +58,7 @@ export const api = {
           users, 
           comments, 
           notifications, 
-          timeEntries,
+          timesheets,
           leaveRequests,
           apiKey, 
           adminPassword, 

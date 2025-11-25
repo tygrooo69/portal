@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, X, Edit2, Check, ChevronLeft, Lock } from 'lucide-react';
+import { Plus, Trash2, X, Edit2, Check, ChevronLeft, Lock, Shield, Briefcase } from 'lucide-react';
 import { User } from '../types';
 
 interface AdminUsersProps {
@@ -27,7 +27,9 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
     email: '',
     password: '',
     color: 'bg-blue-500',
-    avatar: ''
+    avatar: '',
+    role: 'user',
+    service: ''
   };
 
   const [newUserForm, setNewUserForm] = useState<User>({ ...emptyForm });
@@ -93,7 +95,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
           )}
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Gestion de l'Équipe</h2>
-            <p className="text-slate-500">Gérez les membres qui peuvent être assignés aux tâches et projets.</p>
+            <p className="text-slate-500">Gérez les membres, leurs rôles et leurs services.</p>
           </div>
         </div>
         <button 
@@ -143,6 +145,31 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
               </div>
             </div>
             <div className="space-y-4">
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Rôle</label>
+                    <select
+                      value={newUserForm.role}
+                      onChange={e => setNewUserForm({...newUserForm, role: e.target.value as any})}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                    >
+                      <option value="user">Utilisateur</option>
+                      <option value="assistant">Assistante</option>
+                      <option value="admin">Responsable</option>
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Service</label>
+                    <input 
+                      type="text"
+                      value={newUserForm.service || ''}
+                      onChange={e => setNewUserForm({...newUserForm, service: e.target.value})}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                      placeholder="Ex: Maçonnerie"
+                    />
+                 </div>
+               </div>
+
               <ColorSelector value={newUserForm.color} onChange={color => setNewUserForm({...newUserForm, color})} />
               
               <div className="pt-4 flex justify-end">
@@ -176,8 +203,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                       placeholder="Email"
                     />
                  </div>
-                 <div className="flex items-center gap-4">
-                   <div className="flex-1">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div>
                       <input 
                         type="text"
                         value={editForm.password || ''}
@@ -186,8 +213,28 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                         placeholder="Nouveau mot de passe"
                       />
                    </div>
-                   <ColorSelector value={editForm.color || 'bg-blue-500'} onChange={color => setEditForm({...editForm, color})} />
+                   <div>
+                      <select
+                        value={editForm.role}
+                        onChange={e => setEditForm({...editForm, role: e.target.value as any})}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm dark:text-white"
+                      >
+                        <option value="user">Utilisateur</option>
+                        <option value="assistant">Assistante</option>
+                        <option value="admin">Responsable</option>
+                      </select>
+                   </div>
+                   <div>
+                      <input 
+                        type="text"
+                        value={editForm.service || ''}
+                        onChange={e => setEditForm({...editForm, service: e.target.value})}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
+                        placeholder="Service"
+                      />
+                   </div>
                  </div>
+                 <ColorSelector value={editForm.color || 'bg-blue-500'} onChange={color => setEditForm({...editForm, color})} />
                  <div className="flex justify-end gap-2">
                     <button onClick={handleSaveEdit} className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 flex items-center gap-2"><Check size={16}/> Enregistrer</button>
                     <button onClick={handleCancelEdit} className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 flex items-center gap-2"><X size={16}/> Annuler</button>
@@ -199,15 +246,25 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
           return (
             <div key={user.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group hover:shadow-md transition-all">
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full ${user.color} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
+                <div className={`w-12 h-12 rounded-full ${user.color} flex items-center justify-center text-white font-bold text-lg shadow-sm relative`}>
                   {getInitials(user.name)}
+                  {user.role === 'admin' && <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"><Shield size={10} /></div>}
+                  {user.role === 'assistant' && <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full p-1"><Briefcase size={10} /></div>}
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                     {user.name}
                     {user.password && <Lock size={12} className="text-slate-400" />}
                   </h3>
-                  <p className="text-sm text-slate-500">{user.email}</p>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <span>{user.email}</span>
+                    {user.service && (
+                      <>
+                        <span>•</span>
+                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-xs">{user.service}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
