@@ -198,11 +198,11 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                     <select 
                       value={filterUserId} 
                       onChange={(e) => setFilterUserId(e.target.value)}
-                      className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-300 outline-none cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0"
                     >
-                      <option value="all">Tous les utilisateurs</option>
+                      <option value="all" className="bg-white dark:bg-slate-800">Tous les utilisateurs</option>
                       {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
+                        <option key={u.id} value={u.id} className="bg-white dark:bg-slate-800">{u.name}</option>
                       ))}
                     </select>
                  </div>

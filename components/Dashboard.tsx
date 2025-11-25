@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Cloud, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare, LogIn } from 'lucide-react';
+import { Search, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare, LogIn } from 'lucide-react';
 import { AppItem, DocumentItem, Project, Task, User } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
@@ -322,25 +322,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Sidebar Right - Widgets */}
         <div className="space-y-6">
-          
-          {/* Weather Widget Mock */}
-          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden group">
-             <div className="relative z-10">
-               <div className="flex justify-between items-start">
-                 <div>
-                   <p className="text-blue-100 text-sm font-medium">Météo</p>
-                   <h3 className="text-3xl font-bold mt-1">Paris</h3>
-                 </div>
-                 <Cloud className="w-10 h-10 text-blue-200" />
-               </div>
-               <div className="mt-6 flex items-end gap-2">
-                 <span className="text-5xl font-bold">18°</span>
-                 <span className="text-blue-100 mb-1.5">Ciel dégagé</span>
-               </div>
-             </div>
-             {/* Decoration */}
-             <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-          </div>
 
           {/* Project Status Summary Widget */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-0 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
