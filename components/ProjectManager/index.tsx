@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter } from 'lucide-react';
-import { Project, Task, User } from '../../types';
+import { Project, Task, User, Comment } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
 import { BoardView } from './BoardView';
 import { ListView } from './ListView';
-import { TaskModal, ProjectModal } from './Modals';
-import { downloadCsv, getDaysDiff } from './utils';
+import { TaskModal, ProjectModal, ConfirmModal } from './Modals';
+import { downloadCsv, getDaysDiff, addDays } from './utils';
 
 interface ProjectManagerProps {
   projects: Project[];
   tasks: Task[];
   users: User[];
+  comments: Comment[];
   currentUser: User | null;
   initialActiveProjectId?: string | null;
   initialEditingTaskId?: string | null;
@@ -21,12 +22,14 @@ interface ProjectManagerProps {
   onAddTask: (task: Task) => void;
   onUpdateTask: (task: Task) => void;
   onDeleteTask: (id: string) => void;
+  onAddComment: (comment: Comment) => void;
 }
 
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
   projects,
   tasks,
   users,
+  comments,
   currentUser,
   initialActiveProjectId = null,
   initialEditingTaskId = null,
@@ -35,7 +38,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   onDeleteProject,
   onAddTask,
   onUpdateTask,
-  onDeleteTask
+  onDeleteTask,
+  onAddComment
 }) => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialActiveProjectId);
   const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list'>('board');
@@ -47,6 +51,21 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
+
+  // Delete Confirmation State
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    type: 'project' | 'task';
+    id: string;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: 'task',
+    id: '',
+    title: '',
+    message: ''
+  });
 
   useEffect(() => {
     if (initialActiveProjectId) {
@@ -113,10 +132,84 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       priority: partialTask.priority || 'medium',
       startDate: partialTask.startDate!,
       endDate: partialTask.endDate!,
-      assignee: partialTask.assignee
+      assignee: partialTask.assignee,
+      subtasks: partialTask.subtasks || [],
+      dependencies: partialTask.dependencies || []
     };
     onAddTask(task);
     setIsAddingTask(false);
+  };
+
+  // --- CASCADE UPDATE LOGIC ---
+  // When a task is updated, we check if it pushes any dependent tasks
+  const handleTaskUpdateWithDependencies = (updatedTask: Task) => {
+    // 1. Update the main task
+    onUpdateTask(updatedTask);
+
+    // 2. Find immediate dependents (tasks that wait for this updatedTask)
+    const dependentTasks = tasks.filter(t => t.dependencies && t.dependencies.includes(updatedTask.id));
+
+    dependentTasks.forEach(depTask => {
+      // Logic: Start Date of dependent must be > End Date of prerequisite
+      // For simplicity: newStart = prerequisite.EndDate + 0 days (or 1 day)
+      // We'll set it to start exactly after the previous one ends (continuous)
+      const prerequisiteEnd = new Date(updatedTask.endDate);
+      const dependentStart = new Date(depTask.startDate);
+
+      // If the dependent task starts BEFORE the prerequisite ends, we push it.
+      if (dependentStart < prerequisiteEnd) {
+         // Calculate duration to preserve it
+         const duration = getDaysDiff(depTask.startDate, depTask.endDate);
+         
+         const newStartDateStr = updatedTask.endDate; // Starts same day as finish or next day? Let's say same day (Finish-to-Start immediate)
+         // Actually, let's add 1 day for logical clarity if needed, but often Gantt allows same day handoff.
+         // Let's stick to same day handoff for now to keep it tight.
+         
+         const newEndDateStr = addDays(newStartDateStr, duration);
+
+         // Recursively update this dependent task
+         const newDepTask = { ...depTask, startDate: newStartDateStr, endDate: newEndDateStr };
+         handleTaskUpdateWithDependencies(newDepTask);
+      }
+    });
+  };
+
+  // --- DELETE HANDLERS WITH CONFIRMATION ---
+
+  const requestDeleteProject = (id: string) => {
+    const project = projects.find(p => p.id === id);
+    setConfirmState({
+      isOpen: true,
+      type: 'project',
+      id,
+      title: 'Supprimer le projet ?',
+      message: `Êtes-vous sûr de vouloir supprimer "${project?.name}" et toutes ses tâches ? Cette action est irréversible.`
+    });
+  };
+
+  const requestDeleteTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    setConfirmState({
+      isOpen: true,
+      type: 'task',
+      id,
+      title: 'Supprimer la tâche ?',
+      message: `Voulez-vous vraiment supprimer la tâche "${task?.title}" ?`
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (confirmState.type === 'project') {
+      onDeleteProject(confirmState.id);
+      if (activeProjectId === confirmState.id) {
+        setActiveProjectId(null);
+      }
+      setEditingProject(null); // Close modal if open
+    } else {
+      onDeleteTask(confirmState.id);
+      setEditingTask(null); // Close modal if open
+    }
+    setConfirmState({ ...confirmState, isOpen: false });
   };
 
   const handleExportExcel = () => {
@@ -178,7 +271,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         canCreate={!!currentUser}
         onSelectProject={setActiveProjectId}
         onAddProjectClick={() => setIsAddingProject(true)}
-        onDeleteProject={onDeleteProject}
+        onDeleteProject={requestDeleteProject}
         onEditProject={setEditingProject}
       />
 
@@ -267,10 +360,10 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                projects={filteredProjects}
                users={users}
                activeProjectId={activeProjectId}
-               onUpdateTask={onUpdateTask}
-               onDeleteTask={onDeleteTask}
+               onUpdateTask={handleTaskUpdateWithDependencies}
+               onDeleteTask={requestDeleteTask}
                onUpdateProject={onUpdateProject}
-               onDeleteProject={onDeleteProject}
+               onDeleteProject={requestDeleteProject}
                onEditTask={setEditingTask}
                onEditProject={setEditingProject}
              />
@@ -279,8 +372,9 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           {viewMode === 'gantt' && (
              <GanttView 
                items={activeProjectId ? projectTasks : filteredProjects}
+               allTasks={activeProjectId ? projectTasks : []}
                isProjects={!activeProjectId}
-               onUpdateTask={onUpdateTask}
+               onUpdateTask={handleTaskUpdateWithDependencies}
                onUpdateProject={onUpdateProject}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
              />
@@ -291,9 +385,9 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                items={activeProjectId ? projectTasks : filteredProjects}
                isProjects={!activeProjectId}
                users={users}
-               onDelete={activeProjectId ? onDeleteTask : onDeleteProject}
+               onDelete={activeProjectId ? requestDeleteTask : requestDeleteProject}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
-               onUpdateTaskStatus={(t, s) => onUpdateTask({...t, status: s})}
+               onUpdateTaskStatus={(t, s) => handleTaskUpdateWithDependencies({...t, status: s})}
             />
           )}
         </div>
@@ -301,13 +395,23 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
       {/* Modals */}
       
+      {/* Confirm Modal */}
+      <ConfirmModal 
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setConfirmState({...confirmState, isOpen: false})}
+      />
+      
       {/* Creation Task Modal */}
       {isAddingTask && (
         <TaskModal 
            task={null}
            isNew={true}
-           // Filter users: only show members of the current active project
+           currentUser={currentUser}
            users={getProjectMembers(activeProjectId)}
+           allTasks={projectTasks}
            onSave={handleSaveNewTask} 
            onClose={() => setIsAddingTask(false)} 
         />
@@ -317,10 +421,13 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       {editingTask && (
         <TaskModal 
           task={editingTask}
-          // Filter users: only show members of the project this task belongs to
           users={getProjectMembers(editingTask.projectId)}
-          onSave={(updated) => { onUpdateTask(updated as Task); }}
-          onDelete={onDeleteTask}
+          allTasks={tasks.filter(t => t.projectId === editingTask.projectId)}
+          comments={comments}
+          currentUser={currentUser}
+          onSave={(updated) => { handleTaskUpdateWithDependencies(updated as Task); }}
+          onDelete={requestDeleteTask}
+          onAddComment={onAddComment}
           onClose={() => { setEditingTask(null); }}
         />
       )}
@@ -342,10 +449,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           project={editingProject}
           users={users}
           onSave={(updated) => onUpdateProject(updated as Project)}
-          onDelete={(id) => { 
-            onDeleteProject(id); 
-            if(activeProjectId === id) setActiveProjectId(null); 
-          }}
+          onDelete={(id) => requestDeleteProject(id)}
           onClose={() => setEditingProject(null)}
         />
       )}

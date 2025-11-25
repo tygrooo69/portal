@@ -40,6 +40,12 @@ export interface Project {
   members?: string[]; // Array of User IDs
 }
 
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -50,6 +56,27 @@ export interface Task {
   endDate: string;   // YYYY-MM-DD
   priority: 'low' | 'medium' | 'high';
   assignee?: string; // User ID
+  subtasks?: Subtask[]; // Checklist
+  dependencies?: string[]; // Array of Task IDs that must finish before this task starts
+}
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  userId: string;
+  text: string;
+  createdAt: string; // ISO String
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'assignment' | 'deadline' | 'mention';
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  linkProjectId?: string;
+  linkTaskId?: string;
 }
 
 export interface ChatMessage {

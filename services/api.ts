@@ -1,4 +1,4 @@
-import { AppItem, DocumentItem, Project, Task, User } from '../types';
+import { AppItem, DocumentItem, Project, Task, User, Comment, Notification } from '../types';
 
 interface StorageData {
   apps: AppItem[];
@@ -6,6 +6,8 @@ interface StorageData {
   projects?: Project[];
   tasks?: Task[];
   users?: User[];
+  comments?: Comment[];
+  notifications?: Notification[];
   apiKey?: string;
   adminPassword?: string;
 }
@@ -31,6 +33,8 @@ export const api = {
     projects: Project[], 
     tasks: Task[], 
     users: User[],
+    comments: Comment[],
+    notifications: Notification[],
     apiKey?: string, 
     adminPassword?: string
   ): Promise<boolean> {
@@ -40,7 +44,7 @@ export const api = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apps, documents, projects, tasks, users, apiKey, adminPassword }),
+        body: JSON.stringify({ apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword }),
       });
       return response.ok;
     } catch (error) {

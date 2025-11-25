@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare, LogIn } from 'lucide-react';
-import { AppItem, DocumentItem, Project, Task, User } from '../types';
+import { Search, Bell, Download, FileText, FileCode, FileJson, CornerDownLeft, Briefcase, Calendar, Clock, AlertCircle, CheckSquare, LogIn, X, ExternalLink } from 'lucide-react';
+import { AppItem, DocumentItem, Project, Task, User, Notification } from '../types';
 import { getIcon } from '../utils/iconHelper';
 
 interface DashboardProps {
@@ -9,9 +9,12 @@ interface DashboardProps {
   projects?: Project[];
   tasks?: Task[];
   currentUser: User | null;
+  notifications?: Notification[];
   onProjectClick?: (projectId: string) => void;
   onTaskClick?: (taskId: string, projectId: string) => void;
   onNavigateToProjects?: () => void;
+  onMarkNotificationRead?: (id: string) => void;
+  onMarkAllNotificationsRead?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
@@ -20,12 +23,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
   projects = [], 
   tasks = [], 
   currentUser,
+  notifications = [],
   onProjectClick,
   onTaskClick,
-  onNavigateToProjects
+  onNavigateToProjects,
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -77,11 +84,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
   ) : [];
 
   // Filter Projects for Widget based on User
-  // If logged in: show only projects where user is a member
-  // If not logged in: show nothing (privacy)
   const widgetProjects = currentUser 
     ? projects.filter(p => p.members && p.members.includes(currentUser.id))
     : [];
+
+  const unreadNotifications = notifications.filter(n => !n.isRead).length;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -98,18 +105,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  // Helper pour calculer les jours restants
   const getDaysRemaining = (endDateStr?: string) => {
     if (!endDateStr) return null;
     const end = new Date(endDateStr);
     const now = new Date();
-    // Reset hours for simpler day calc
     end.setHours(0,0,0,0);
     now.setHours(0,0,0,0);
-    
     const diffTime = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const getDaysRemainingBadge = (days: number) => {
@@ -125,7 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 md:p-8">
+    <div className="flex-1 overflow-y-auto p-6 md:p-8" onClick={() => setShowNotifications(false)}>
       {/* Header / Greeting */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
@@ -141,10 +144,62 @@ export const Dashboard: React.FC<DashboardProps> = ({
              <p className="text-2xl font-semibold text-slate-800 dark:text-white">{formatTime(currentTime)}</p>
              <p className="text-sm text-slate-500 capitalize">{formatDate(currentTime)}</p>
            </div>
-           <button className="p-3 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors relative">
-             <Bell size={20} />
-             <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
-           </button>
+           
+           {/* Notification Bell */}
+           <div className="relative" onClick={e => e.stopPropagation()}>
+             <button 
+               onClick={() => setShowNotifications(!showNotifications)}
+               className={`p-3 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors relative ${unreadNotifications > 0 ? 'text-blue-600 dark:text-blue-400' : ''}`}
+             >
+               <Bell size={20} />
+               {unreadNotifications > 0 && (
+                 <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
+               )}
+             </button>
+
+             {/* Notification Dropdown */}
+             {showNotifications && (
+               <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 animate-in fade-in slide-in-from-top-2 overflow-hidden">
+                 <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <h3 className="font-semibold text-slate-800 dark:text-white text-sm">Notifications</h3>
+                    {unreadNotifications > 0 && (
+                      <button onClick={onMarkAllNotificationsRead} className="text-xs text-blue-600 hover:underline">Tout lire</button>
+                    )}
+                 </div>
+                 <div className="max-h-80 overflow-y-auto">
+                   {notifications.length === 0 ? (
+                     <div className="p-6 text-center text-slate-400 text-sm">Aucune notification.</div>
+                   ) : (
+                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                       {notifications.map(notif => (
+                         <div 
+                           key={notif.id} 
+                           className={`p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer ${!notif.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                           onClick={() => {
+                             onMarkNotificationRead && onMarkNotificationRead(notif.id);
+                             if (notif.linkTaskId && notif.linkProjectId && onTaskClick) {
+                               onTaskClick(notif.linkTaskId, notif.linkProjectId);
+                               setShowNotifications(false);
+                             }
+                           }}
+                         >
+                            <div className="flex gap-3">
+                               <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!notif.isRead ? 'bg-blue-500' : 'bg-transparent'}`}></div>
+                               <div className="flex-1">
+                                  <p className={`text-sm ${!notif.isRead ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                                    {notif.message}
+                                  </p>
+                                  <p className="text-xs text-slate-400 mt-1">{new Date(notif.createdAt).toLocaleDateString()} {new Date(notif.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
+           </div>
         </div>
       </div>
 
@@ -169,7 +224,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content - App Grid & Documents */}
+        {/* Main Content */}
         <div className="lg:col-span-2 space-y-8">
           
           {/* SEARCH RESULTS SECTION */}
@@ -215,7 +270,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               <CheckSquare size={16} className={task.status === 'done' ? 'text-green-500' : 'text-blue-500'} />
                               <div>
                                 <p className={`font-medium text-sm ${task.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-white'}`}>{task.title}</p>
-                                <p className="text--[10px] text-slate-400">Projet: {parentProject?.name || 'Inconnu'}</p>
+                                <p className="text-[10px] text-slate-400">Projet: {parentProject?.name || 'Inconnu'}</p>
                               </div>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded border ${task.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>

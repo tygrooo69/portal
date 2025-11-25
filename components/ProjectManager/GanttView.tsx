@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, RotateCcw, Filter } from 'lucide-react';
 import { Project, Task } from '../../types';
@@ -8,6 +7,7 @@ type GanttScope = 'day' | 'week' | 'month';
 
 interface GanttViewProps {
   items: (Task | Project)[];
+  allTasks?: Task[]; // To calculate lines
   isProjects: boolean;
   onUpdateTask?: (task: Task) => void;
   onUpdateProject?: (project: Project) => void;
@@ -16,6 +16,7 @@ interface GanttViewProps {
 
 export const GanttView: React.FC<GanttViewProps> = ({ 
   items, 
+  allTasks = [],
   isProjects, 
   onUpdateTask, 
   onUpdateProject,
@@ -119,6 +120,89 @@ export const GanttView: React.FC<GanttViewProps> = ({
     });
   };
 
+  // --- Helper to calculate bar positions ---
+  const getItemMetrics = (item: Task | Project) => {
+    const isDragging = dragState?.itemId === item.id;
+    let currentStart = item.startDate || new Date().toISOString().split('T')[0];
+    let currentEnd = item.endDate || new Date().toISOString().split('T')[0];
+
+    if (isDragging) {
+      if (dragState.type === 'move') {
+        currentStart = addDays(dragState.originalStart, dragState.currentDeltaDays);
+        currentEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
+      } else {
+        currentEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
+        if (new Date(currentEnd) < new Date(currentStart)) currentEnd = currentStart;
+      }
+    }
+
+    const diffDays = getDaysDiff(new Date(timelineStartTs).toISOString(), currentStart);
+    const durationDays = getDaysDiff(currentStart, currentEnd) || 1;
+    
+    const left = diffDays * ganttConfig.colWidth;
+    const width = durationDays * ganttConfig.colWidth;
+
+    return { left, width, visible: (diffDays + durationDays >= 0 && diffDays <= ganttConfig.daysToRender) };
+  };
+
+  // --- Render Lines SVG ---
+  const renderDependencyLines = () => {
+    if (isProjects || !allTasks.length) return null;
+
+    return (
+      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
+        <defs>
+          <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#94a3b8" />
+          </marker>
+        </defs>
+        {items.map((item, index) => {
+          const task = item as Task;
+          if (!task.dependencies || task.dependencies.length === 0) return null;
+
+          const metrics = getItemMetrics(task);
+          if (!metrics.visible) return null;
+
+          const rowHeight = 56; // 40px bar + 16px gap
+          const currentY = (index * rowHeight) + 20 + 16; // Top offset + half height + padding
+
+          return task.dependencies.map(depId => {
+            const depTaskIndex = items.findIndex(i => i.id === depId);
+            if (depTaskIndex === -1) return null; // Prerequisite not in view/filtered out
+
+            const depTask = items[depTaskIndex];
+            const depMetrics = getItemMetrics(depTask);
+            
+            const depY = (depTaskIndex * rowHeight) + 20 + 16;
+            
+            // Start Point (End of Prerequisite)
+            const x1 = depMetrics.left + depMetrics.width;
+            const y1 = depY;
+
+            // End Point (Start of Current)
+            const x2 = metrics.left;
+            const y2 = currentY;
+
+            // Simple Path Logic
+            const path = `M ${x1} ${y1} C ${x1 + 20} ${y1}, ${x2 - 20} ${y2}, ${x2} ${y2}`;
+
+            return (
+              <path 
+                key={`${depId}-${task.id}`}
+                d={path}
+                stroke="#cbd5e1"
+                strokeWidth="2"
+                fill="none"
+                markerEnd="url(#arrowhead)"
+                className="dark:stroke-slate-600"
+              />
+            );
+          });
+        })}
+      </svg>
+    );
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full select-none print:border-0 print:shadow-none print:h-auto print:block">
       <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 print:hidden flex-wrap gap-2">
@@ -166,30 +250,14 @@ export const GanttView: React.FC<GanttViewProps> = ({
              ))}
            </div>
 
-           {/* Bars */}
+           {/* Tasks and Connections */}
            <div className="py-4 space-y-4 relative z-10 print:space-y-6">
+              
+              {renderDependencyLines()}
+
               {items.map(item => {
-                const isDragging = dragState?.itemId === item.id;
-                let currentStart = item.startDate || new Date().toISOString().split('T')[0];
-                let currentEnd = item.endDate || new Date().toISOString().split('T')[0];
-
-                if (isDragging) {
-                  if (dragState.type === 'move') {
-                    currentStart = addDays(dragState.originalStart, dragState.currentDeltaDays);
-                    currentEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
-                  } else {
-                    currentEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
-                    if (new Date(currentEnd) < new Date(currentStart)) currentEnd = currentStart;
-                  }
-                }
-
-                const diffDays = getDaysDiff(new Date(timelineStartTs).toISOString(), currentStart);
-                const durationDays = getDaysDiff(currentStart, currentEnd) || 1;
-                
-                if (diffDays + durationDays < 0 || diffDays > ganttConfig.daysToRender) return null;
-
-                const left = diffDays * ganttConfig.colWidth;
-                const width = durationDays * ganttConfig.colWidth;
+                const metrics = getItemMetrics(item);
+                if (!metrics.visible) return null;
                 
                 let colorClass = 'bg-slate-400';
                 const status = (item as any).status;
@@ -198,23 +266,25 @@ export const GanttView: React.FC<GanttViewProps> = ({
                 else if (status === 'on-hold') colorClass = 'bg-orange-500';
 
                 const label = (item as any).title || (item as any).name;
+                const isDragging = dragState?.itemId === item.id;
+                const durationDays = Math.round(metrics.width / ganttConfig.colWidth);
 
                 return (
                   <div key={item.id} className="relative h-10 group print:h-8">
                      <div 
                        className="absolute text-sm text-slate-600 dark:text-slate-300 font-medium truncate px-2 leading-10 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8"
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                       style={{ left: Math.max(0, left), maxWidth: Math.max(width, 200) }}
+                       style={{ left: Math.max(0, metrics.left), maxWidth: Math.max(metrics.width, 200) }}
                      >
                        {label}
                      </div>
                      <div 
                        className={`absolute top-2 h-6 rounded-md ${colorClass} shadow-sm flex items-center px-2 group/bar ${isDragging ? 'brightness-110 shadow-lg ring-2 ring-blue-400/50 z-30' : ''} print:border print:border-slate-500`}
-                       style={{ left: `${left}px`, width: `${Math.max(width, 5)}px`, cursor: isDragging ? 'grabbing' : 'grab', opacity: 0.9 }}
+                       style={{ left: `${metrics.left}px`, width: `${Math.max(metrics.width, 5)}px`, cursor: isDragging ? 'grabbing' : 'grab', opacity: 0.9 }}
                        onMouseDown={(e) => initDrag(e, item.id, 'move', item)}
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
                      >
-                       {width > 40 && <span className="text-[10px] text-white/90 truncate ml-auto pointer-events-none print:text-white">{durationDays}j</span>}
+                       {metrics.width > 40 && <span className="text-[10px] text-white/90 truncate ml-auto pointer-events-none print:text-white">{durationDays}j</span>}
                        <div className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize hover:bg-black/10 flex items-center justify-center rounded-r-md transition-colors z-40 print:hidden" onMouseDown={(e) => initDrag(e, item.id, 'resize', item)}>
                          <div className="w-0.5 h-3 bg-white/50 rounded-full" />
                        </div>

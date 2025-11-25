@@ -71,7 +71,7 @@ async function initDB() {
       await conn.query(`ALTER TABLE users ADD COLUMN password VARCHAR(255)`);
       console.log("Migration: Added 'password' column to users.");
     } catch (e) {
-       if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
+       // Ignore if exists
     }
 
     // Seed Users if empty
@@ -103,13 +103,9 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Add members column if it doesn't exist (Migration)
     try {
       await conn.query(`ALTER TABLE projects ADD COLUMN members TEXT`);
-      console.log("Migration: Added 'members' column to projects.");
-    } catch (e) {
-      if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
-    }
+    } catch (e) { /* ignore */ }
 
     // Tasks Table
     await conn.query(`
@@ -123,17 +119,52 @@ async function initDB() {
         startDate VARCHAR(50),
         endDate VARCHAR(50),
         assignee VARCHAR(255),
+        subtasks LONGTEXT,
+        dependencies LONGTEXT,
         INDEX idx_project (projectId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Add assignee column if it doesn't exist (Migration)
     try {
       await conn.query(`ALTER TABLE tasks ADD COLUMN assignee VARCHAR(255)`);
-      console.log("Migration: Added 'assignee' column to tasks.");
-    } catch (e) {
-       if (e.code !== 'ER_DUP_FIELDNAME') console.log("Column check skipped or error:", e.message);
-    }
+    } catch (e) { /* ignore */ }
+
+    try {
+      await conn.query(`ALTER TABLE tasks ADD COLUMN subtasks LONGTEXT`);
+      console.log("Migration: Added 'subtasks' column to tasks.");
+    } catch (e) { /* ignore */ }
+
+    try {
+      await conn.query(`ALTER TABLE tasks ADD COLUMN dependencies LONGTEXT`);
+      console.log("Migration: Added 'dependencies' column to tasks.");
+    } catch (e) { /* ignore */ }
+
+    // Comments Table (New)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id VARCHAR(255) PRIMARY KEY,
+        taskId VARCHAR(255),
+        userId VARCHAR(255),
+        text TEXT,
+        createdAt VARCHAR(50),
+        INDEX idx_task (taskId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Notifications Table (New)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(255) PRIMARY KEY,
+        userId VARCHAR(255),
+        type VARCHAR(50),
+        message TEXT,
+        isRead BOOLEAN,
+        createdAt VARCHAR(50),
+        linkProjectId VARCHAR(255),
+        linkTaskId VARCHAR(255),
+        INDEX idx_user (userId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
 
     // Apps Table
     await conn.query(`
@@ -168,7 +199,6 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Insert default settings row if not exists
     await conn.query(`
       INSERT IGNORE INTO settings (id, apiKey, adminPassword) VALUES (1, '', 'admin');
     `);
@@ -190,6 +220,8 @@ const getDefaultData = () => ({
   projects: [],
   tasks: [],
   users: [],
+  comments: [],
+  notifications: [],
   apiKey: "", 
   adminPassword: "admin" 
 });
@@ -200,18 +232,31 @@ app.get('/api/data', async (req, res) => {
   if (useMySQL && pool) {
     try {
       const [projectsRows] = await pool.query('SELECT * FROM projects');
-      const [tasks] = await pool.query('SELECT * FROM tasks');
+      const [tasksRows] = await pool.query('SELECT * FROM tasks');
       const [apps] = await pool.query('SELECT * FROM apps');
       const [documents] = await pool.query('SELECT * FROM documents');
       const [users] = await pool.query('SELECT * FROM users');
+      const [comments] = await pool.query('SELECT * FROM comments');
+      const [notificationsRows] = await pool.query('SELECT * FROM notifications');
       const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
       
       const settings = settingsRows[0] || { apiKey: '', adminPassword: 'admin' };
 
-      // Parse 'members' JSON string back to array for frontend
+      // Parse JSON fields
       const projects = projectsRows.map(p => ({
         ...p,
         members: p.members ? JSON.parse(p.members) : []
+      }));
+
+      const tasks = tasksRows.map(t => ({
+        ...t,
+        subtasks: t.subtasks ? JSON.parse(t.subtasks) : [],
+        dependencies: t.dependencies ? JSON.parse(t.dependencies) : []
+      }));
+
+      const notifications = notificationsRows.map(n => ({
+        ...n,
+        isRead: Boolean(n.isRead) // Ensure boolean
       }));
 
       res.json({
@@ -220,6 +265,8 @@ app.get('/api/data', async (req, res) => {
         projects,
         tasks,
         users,
+        comments,
+        notifications,
         apiKey: settings.apiKey,
         adminPassword: settings.adminPassword
       });
@@ -238,7 +285,7 @@ app.get('/api/data', async (req, res) => {
 });
 
 app.post('/api/data', async (req, res) => {
-  const { apps, documents, projects, tasks, users, apiKey, adminPassword } = req.body;
+  const { apps, documents, projects, tasks, users, comments, notifications, apiKey, adminPassword } = req.body;
 
   if (useMySQL && pool) {
     const conn = await pool.getConnection();
@@ -260,7 +307,7 @@ app.post('/api/data', async (req, res) => {
       if (projects && projects.length > 0) {
         const projValues = projects.map(p => [
           p.id, p.name, p.description || '', p.color, p.status || 'active', p.priority || 'medium', p.startDate, p.endDate, p.createdAt, 
-          JSON.stringify(p.members || []) // Store array as JSON string
+          JSON.stringify(p.members || [])
         ]);
         await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members) VALUES ?', [projValues]);
       }
@@ -269,9 +316,10 @@ app.post('/api/data', async (req, res) => {
       await conn.query('DELETE FROM tasks');
       if (tasks && tasks.length > 0) {
         const taskValues = tasks.map(t => [
-          t.id, t.projectId, t.title, t.description || '', t.status, t.priority, t.startDate, t.endDate, t.assignee || null
+          t.id, t.projectId, t.title, t.description || '', t.status, t.priority, t.startDate, t.endDate, t.assignee || null,
+          JSON.stringify(t.subtasks || []), JSON.stringify(t.dependencies || [])
         ]);
-        await conn.query('INSERT INTO tasks (id, projectId, title, description, status, priority, startDate, endDate, assignee) VALUES ?', [taskValues]);
+        await conn.query('INSERT INTO tasks (id, projectId, title, description, status, priority, startDate, endDate, assignee, subtasks, dependencies) VALUES ?', [taskValues]);
       }
 
       // 5. Documents
@@ -286,6 +334,20 @@ app.post('/api/data', async (req, res) => {
       if (users && users.length > 0) {
         const userValues = users.map(u => [u.id, u.name, u.email, u.password || '', u.avatar || '', u.color]);
         await conn.query('INSERT INTO users (id, name, email, password, avatar, color) VALUES ?', [userValues]);
+      }
+
+      // 7. Comments
+      await conn.query('DELETE FROM comments');
+      if (comments && comments.length > 0) {
+        const comValues = comments.map(c => [c.id, c.taskId, c.userId, c.text, c.createdAt]);
+        await conn.query('INSERT INTO comments (id, taskId, userId, text, createdAt) VALUES ?', [comValues]);
+      }
+
+      // 8. Notifications
+      await conn.query('DELETE FROM notifications');
+      if (notifications && notifications.length > 0) {
+        const notifValues = notifications.map(n => [n.id, n.userId, n.type, n.message, n.isRead, n.createdAt, n.linkProjectId || null, n.linkTaskId || null]);
+        await conn.query('INSERT INTO notifications (id, userId, type, message, isRead, createdAt, linkProjectId, linkTaskId) VALUES ?', [notifValues]);
       }
 
       await conn.commit();
@@ -306,6 +368,8 @@ app.post('/api/data', async (req, res) => {
         projects, 
         tasks, 
         users: users || [],
+        comments: comments || [],
+        notifications: notifications || [],
         apiKey, 
         adminPassword 
       };

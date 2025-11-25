@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Clock, User } from 'lucide-react';
+import { Trash2, Clock, User, CheckSquare } from 'lucide-react';
 import { Project, Task, User as UserType } from '../../types';
 
 interface BoardViewProps {
@@ -128,6 +128,8 @@ export const BoardView: React.FC<BoardViewProps> = ({
 
   const renderTaskCard = (task: Task) => {
     const assignee = users.find(u => u.id === task.assignee);
+    const subtasks = task.subtasks || [];
+    const completedSubtasks = subtasks.filter(s => s.completed).length;
 
     return (
       <div 
@@ -149,6 +151,18 @@ export const BoardView: React.FC<BoardViewProps> = ({
             </div>
           </div>
           
+          {subtasks.length > 0 && (
+             <div className="mt-2 mb-2">
+                <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                   <div className="flex items-center gap-1"><CheckSquare size={10} /> Checklist</div>
+                   <span>{completedSubtasks}/{subtasks.length}</span>
+                </div>
+                <div className="h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                   <div className="h-full bg-blue-500" style={{ width: `${(completedSubtasks/subtasks.length)*100}%` }}></div>
+                </div>
+             </div>
+          )}
+
           <div className="flex items-center justify-between mt-3">
              {assignee ? (
                <div className="flex items-center gap-1.5" title={`Assigné à ${assignee.name}`}>
