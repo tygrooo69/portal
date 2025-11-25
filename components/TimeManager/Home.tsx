@@ -9,7 +9,7 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ onNavigate, currentUser }) => {
   const canValidate = currentUser.role === 'assistant' || currentUser.role === 'admin';
-  const isAssistant = currentUser.role === 'assistant' || currentUser.role === 'admin'; // Broad definition for now
+  const isAssistant = currentUser.role === 'assistant';
 
   return (
     <div className="p-6 md:p-8 h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">

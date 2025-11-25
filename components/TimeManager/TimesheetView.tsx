@@ -189,7 +189,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               disabled={isReadOnly}
                               value={entry.businessId}
                               onChange={(e) => handleEntryChange(entry.id, 'businessId', e.target.value)}
-                              className="w-full bg-transparent outline-none border-b border-transparent focus:border-blue-500"
+                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                              placeholder="Ex: 24-001"
                             />
                           </td>
                           <td className="px-4 py-2">
@@ -198,7 +199,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               disabled={isReadOnly}
                               value={entry.zone}
                               onChange={(e) => handleEntryChange(entry.id, 'zone', e.target.value)}
-                              className="w-full bg-transparent outline-none border-b border-transparent focus:border-blue-500"
+                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                              placeholder="Ex: Z1"
                             />
                           </td>
                           <td className="px-4 py-2">
@@ -207,7 +209,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               disabled={isReadOnly}
                               value={entry.site}
                               onChange={(e) => handleEntryChange(entry.id, 'site', e.target.value)}
-                              className="w-full bg-transparent outline-none border-b border-transparent focus:border-blue-500"
+                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                              placeholder="Nom du chantier"
                             />
                           </td>
                           {entry.hours.map((h, i) => (
@@ -219,7 +222,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                                 disabled={isReadOnly}
                                 value={h || ''}
                                 onChange={(e) => handleEntryChange(entry.id, 'hours', e.target.value, i)}
-                                className="w-full text-center bg-slate-50 dark:bg-slate-800 rounded py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded py-1 outline-none focus:ring-2 focus:ring-blue-500"
                               />
                             </td>
                           ))}
@@ -310,7 +313,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
         <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-800">
               <h3 className="text-lg font-bold mb-4">Transmettre la feuille</h3>
-              <p className="text-sm text-slate-500 mb-4">Veuillez sélectionner le responsable qui validera votre saisie.</p>
+              <p className="text-sm text-slate-500 mb-4">Veuillez sélectionner le Responsable qui validera votre saisie.</p>
               
               <div className="mb-6">
                 <label className="block text-xs font-medium text-slate-500 mb-1">Responsable</label>
