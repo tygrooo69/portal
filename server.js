@@ -57,14 +57,39 @@ const getDefaultData = () => ({
   adminPassword: "admin" 
 });
 
-// Sanitize object for NocoDB (empty strings -> null for dates)
+// Normalize NocoDB record for Frontend (Map system columns back to camelCase)
+const normalizeFromNoco = (record) => {
+  const normalized = { ...record };
+  
+  // If NocoDB has 'CreatedAt' system column, map it to 'createdAt' if not present
+  if (normalized.CreatedAt && !normalized.createdAt) {
+    normalized.createdAt = normalized.CreatedAt;
+  }
+  // Same for UpdatedAt
+  if (normalized.UpdatedAt && !normalized.updatedAt) {
+    normalized.updatedAt = normalized.UpdatedAt;
+  }
+  
+  return normalized;
+};
+
+// Sanitize object for NocoDB (remove system columns, handle empty dates)
 const sanitizeForNoco = (item) => {
   const clean = { ...item };
-  const dateFields = ['startDate', 'endDate', 'createdAt', 'uploadDate'];
+  const dateFields = ['startDate', 'endDate', 'uploadDate'];
+  
+  // CRITICAL: Remove system columns that cannot be written to
+  // Even if they exist in our frontend model, we must not send them to NocoDB
+  // because NocoDB manages them automatically and throws an error if we try to set them.
+  delete clean.CreatedAt;
+  delete clean.UpdatedAt;
+  delete clean.createdAt; 
+  delete clean.updatedAt;
+  delete clean.Id; // System ID should not be in payload (we use it in URL or existingMap)
   
   Object.keys(clean).forEach(key => {
+    // Handle empty strings for Date fields (NocoDB rejects "" for Date columns)
     if (clean[key] === '') {
-      // Check if it's likely a date field or just generic cleanup
       if (dateFields.includes(key)) {
         clean[key] = null;
       }
@@ -101,7 +126,10 @@ const nocoFetchAll = async (tableId) => {
 
       const json = await response.json();
       const list = json.list || [];
-      allRecords = [...allRecords, ...list];
+      
+      // Normalize immediately after fetch
+      const normalizedList = list.map(normalizeFromNoco);
+      allRecords = [...allRecords, ...normalizedList];
 
       if (list.length < limit) {
         keepFetching = false;
@@ -138,15 +166,20 @@ const syncTable = async (tableId, incomingItems) => {
     // Identify Create/Update
     for (const item of incomingItems) {
       const cleanItem = sanitizeForNoco(item);
+      
       if (existingMap.has(item.id)) {
+        // Update: We need the System 'Id' to identify the row for NocoDB
         toUpdate.push({ ...cleanItem, Id: existingMap.get(item.id) });
       } else {
+        // Create: Just the data
         toCreate.push(cleanItem);
       }
     }
 
     // Identify Delete
     existingRecords.forEach(r => {
+      // Only delete if it has a custom 'id' field that is no longer present in incoming data
+      // This protects against deleting rows that might have been created manually in NocoDB without an 'id'
       if (r.id && !incomingIds.has(r.id)) {
         toDelete.push({ Id: r.Id });
       }
@@ -170,13 +203,16 @@ const syncTable = async (tableId, incomingItems) => {
         });
 
         if (!res.ok) {
-          const errText = await res.text();
+          const errText = await responseText(res); // Safe text extraction
           console.error(`[NocoDB] Sync Error (${method}) on ${tableId}:`, errText);
-          // Don't throw here to allow partial success of other chunks? 
-          // Better to throw to signal failure to frontend
           throw new Error(`NocoDB ${method} failed: ${errText}`);
         }
       }
+    };
+    
+    // Helper to safely get text from response clone
+    const responseText = async (res) => {
+        try { return await res.clone().text(); } catch(e) { return "Unknown error"; }
     };
 
     await executeBatch('POST', toCreate);
