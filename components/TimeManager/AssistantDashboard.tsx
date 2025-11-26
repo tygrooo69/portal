@@ -1,16 +1,17 @@
-
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Filter, CheckSquare, Square, CheckCircle, Search, X, Calendar, MapPin, Briefcase, UserPlus, Clock, User as UserIcon, Image as ImageIcon, FileText, ArrowRightLeft } from 'lucide-react';
+import { ArrowLeft, Filter, CheckSquare, Square, CheckCircle, Search, X, Calendar, MapPin, Briefcase, UserPlus, Clock, User as UserIcon, Image as ImageIcon, FileText, ArrowRightLeft, Trash2 } from 'lucide-react';
 import { User, Timesheet, LeaveRequest } from '../../types';
 import { getWeekDays } from './utils';
 import { TimesheetView } from './TimesheetView';
 import { LeaveView } from './LeaveView';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface AssistantDashboardProps {
   users: User[];
   timesheets: Timesheet[];
   leaveRequests: LeaveRequest[];
   onSaveTimesheet: (timesheet: Timesheet) => void;
+  onDeleteTimesheet: (id: string) => void;
   onUpdateLeaveRequest: (request: LeaveRequest) => void;
   onAddLeaveRequest: (request: LeaveRequest) => void;
   onBack: () => void;
@@ -46,7 +47,7 @@ interface TransferRow {
 }
 
 export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
-  users, timesheets, leaveRequests, onSaveTimesheet, onUpdateLeaveRequest, onAddLeaveRequest, onBack
+  users, timesheets, leaveRequests, onSaveTimesheet, onDeleteTimesheet, onUpdateLeaveRequest, onAddLeaveRequest, onBack
 }) => {
   const [filterService, setFilterService] = useState<string>('all');
   const [showProcessed, setShowProcessed] = useState(false);
@@ -67,6 +68,9 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
   // Transfer Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferData, setTransferData] = useState<TransferRow[]>([]);
+
+  // Delete Confirmation
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Get unique services
   const services = Array.from(new Set(users.map(u => u.service).filter(Boolean)));
@@ -200,6 +204,15 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
 
   const handleTransferChange = (id: string, field: keyof TransferRow, value: string | number) => {
     setTransferData(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
+  };
+
+  // --- DELETE HANDLER ---
+  const handleDeleteConfirm = () => {
+    if (selectedItem && selectedItem._type === 'timesheet') {
+      onDeleteTimesheet(selectedItem.id);
+      setSelectedItem(null);
+      setShowDeleteConfirm(false);
+    }
   };
 
   // --- CONDITIONAL RENDER: PROXY MODES ---
@@ -619,8 +632,17 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                 )}
              </div>
 
-             <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-                 <div className="mr-auto flex items-center gap-3">
+             <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center gap-3">
+                 {selectedItem._type === 'timesheet' && (
+                    <button 
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                       <Trash2 size={18} /> Supprimer
+                    </button>
+                 )}
+                 
+                 <div className="flex items-center gap-3 ml-auto">
                     <span className="text-sm text-slate-500 font-medium">Action Rapide :</span>
                     <button 
                       onClick={() => {
@@ -633,10 +655,10 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                     >
                        {selectedItem.isProcessed ? <><CheckSquare size={18}/> Traité</> : <><Square size={18}/> Marquer comme traité</>}
                     </button>
+                    <button onClick={() => setSelectedItem(null)} className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+                      Fermer
+                    </button>
                  </div>
-                 <button onClick={() => setSelectedItem(null)} className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
-                   Fermer
-                 </button>
              </div>
           </div>
         </div>
@@ -730,6 +752,14 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
            </div>
         </div>
       )}
+
+      <ConfirmModal 
+        isOpen={showDeleteConfirm}
+        title="Supprimer cette feuille ?"
+        message="Voulez-vous vraiment supprimer définitivement cette feuille d'heures ?"
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 };

@@ -14,6 +14,7 @@ interface TimeManagerProps {
   timesheets: Timesheet[];
   leaveRequests: LeaveRequest[];
   onSaveTimesheet: (timesheet: Timesheet) => void;
+  onDeleteTimesheet: (id: string) => void;
   onAddLeaveRequest: (request: LeaveRequest) => void;
   onUpdateLeaveRequest: (request: LeaveRequest) => void;
   onLoginClick: () => void;
@@ -28,6 +29,7 @@ export const TimeManager: React.FC<TimeManagerProps> = ({
   timesheets,
   leaveRequests,
   onSaveTimesheet,
+  onDeleteTimesheet,
   onAddLeaveRequest,
   onUpdateLeaveRequest,
   onLoginClick
@@ -95,6 +97,7 @@ export const TimeManager: React.FC<TimeManagerProps> = ({
           timesheets={timesheets}
           leaveRequests={leaveRequests}
           onSaveTimesheet={onSaveTimesheet}
+          onDeleteTimesheet={onDeleteTimesheet}
           onUpdateLeaveRequest={onUpdateLeaveRequest}
           onAddLeaveRequest={onAddLeaveRequest}
           onBack={() => setMode('home')}

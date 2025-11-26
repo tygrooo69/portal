@@ -442,6 +442,11 @@ const App: React.FC = () => {
     persistData(apps, documents, projects, tasks, users, comments, newNotifs, newTimesheets, leaveRequests);
   };
 
+  const handleDeleteTimesheet = (id: string) => {
+    const newTimesheets = timesheets.filter(t => t.id !== id);
+    persistData(apps, documents, projects, tasks, users, comments, notifications, newTimesheets, leaveRequests);
+  };
+
   const handleAddLeaveRequest = (request: LeaveRequest) => {
     let newNotifs = [...notifications];
     if (request.managerId) {
@@ -555,6 +560,7 @@ const App: React.FC = () => {
             timesheets={timesheets}
             leaveRequests={leaveRequests}
             onSaveTimesheet={handleSaveTimesheet}
+            onDeleteTimesheet={handleDeleteTimesheet}
             onAddLeaveRequest={handleAddLeaveRequest}
             onUpdateLeaveRequest={handleUpdateLeaveRequest}
             onLoginClick={() => setIsLoginModalOpen(true)}
