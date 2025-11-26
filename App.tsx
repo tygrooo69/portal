@@ -82,42 +82,42 @@ const App: React.FC = () => {
         if (serverData.logo) setLogo(serverData.logo);
       } else {
         // 2. Fallback to LocalStorage (Client)
-        const savedApps = localStorage.getItem('lumina_apps');
+        const savedApps = localStorage.getItem('spotlink_apps');
         if (savedApps) {
           try { setApps(JSON.parse(savedApps)); } catch (e) { setApps(DEFAULT_APPS); }
         } else {
           setApps(DEFAULT_APPS);
         }
 
-        const savedDocs = localStorage.getItem('lumina_documents');
+        const savedDocs = localStorage.getItem('spotlink_documents');
         if (savedDocs) {
           try { setDocuments(JSON.parse(savedDocs)); } catch (e) { console.error(e); }
         }
 
-        const savedProjects = localStorage.getItem('lumina_projects');
+        const savedProjects = localStorage.getItem('spotlink_projects');
         if (savedProjects) {
           try { setProjects(JSON.parse(savedProjects)); } catch (e) { console.error(e); }
         }
 
-        const savedTasks = localStorage.getItem('lumina_tasks');
+        const savedTasks = localStorage.getItem('spotlink_tasks');
         if (savedTasks) {
           try { setTasks(JSON.parse(savedTasks)); } catch (e) { console.error(e); }
         }
 
-        const savedUsers = localStorage.getItem('lumina_users');
+        const savedUsers = localStorage.getItem('spotlink_users');
         if (savedUsers) {
           try { setUsers(JSON.parse(savedUsers)); } catch (e) { console.error(e); }
         }
         
-        const savedKey = localStorage.getItem('lumina_api_key');
+        const savedKey = localStorage.getItem('spotlink_api_key');
         if (savedKey) setApiKey(savedKey);
 
-        const savedLogo = localStorage.getItem('lumina_logo');
+        const savedLogo = localStorage.getItem('spotlink_logo');
         if (savedLogo) setLogo(savedLogo);
       }
       
       // Load current user from session if available
-      const savedUserSession = sessionStorage.getItem('lumina_current_user');
+      const savedUserSession = sessionStorage.getItem('spotlink_current_user');
       if (savedUserSession) {
         try { setCurrentUser(JSON.parse(savedUserSession)); } catch (e) {}
       }
@@ -213,13 +213,13 @@ const App: React.FC = () => {
     if (!serverSaved) {
       // Fallback: Save to LocalStorage (Only minimal set if needed, usually server is reliable in this demo)
       try {
-        localStorage.setItem('lumina_apps', JSON.stringify(newApps));
-        localStorage.setItem('lumina_documents', JSON.stringify(newDocs));
-        localStorage.setItem('lumina_projects', JSON.stringify(newProjects));
-        localStorage.setItem('lumina_tasks', JSON.stringify(newTasks));
-        localStorage.setItem('lumina_users', JSON.stringify(newUsers));
-        if (newKey !== undefined) localStorage.setItem('lumina_api_key', newKey);
-        if (newLogo !== undefined) localStorage.setItem('lumina_logo', newLogo);
+        localStorage.setItem('spotlink_apps', JSON.stringify(newApps));
+        localStorage.setItem('spotlink_documents', JSON.stringify(newDocs));
+        localStorage.setItem('spotlink_projects', JSON.stringify(newProjects));
+        localStorage.setItem('spotlink_tasks', JSON.stringify(newTasks));
+        localStorage.setItem('spotlink_users', JSON.stringify(newUsers));
+        if (newKey !== undefined) localStorage.setItem('spotlink_api_key', newKey);
+        if (newLogo !== undefined) localStorage.setItem('spotlink_logo', newLogo);
       } catch (e) {
         console.warn("LocalStorage quota exceeded or error", e);
       }
@@ -273,6 +273,14 @@ const App: React.FC = () => {
     } else { return; }
 
     persistData(apps, documents, projects.map(p => p.id === updatedProject.id ? updatedProject : p), tasks, users, comments, notifications, timesheets, leaveRequests);
+  };
+
+  const handleUpdateProjects = (updatedProjects: Project[]) => {
+    const newProjectsList = projects.map(p => {
+      const updated = updatedProjects.find(u => u.id === p.id);
+      return updated ? updated : p;
+    });
+    persistData(apps, documents, newProjectsList, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleDeleteProject = (id: string) => {
@@ -392,7 +400,7 @@ const App: React.FC = () => {
     persistData(apps, documents, projects, tasks, newUsers, comments, notifications, timesheets, leaveRequests);
     if (currentUser && currentUser.id === updatedUser.id) {
        setCurrentUser(updatedUser);
-       sessionStorage.setItem('lumina_current_user', JSON.stringify(updatedUser));
+       sessionStorage.setItem('spotlink_current_user', JSON.stringify(updatedUser));
     }
   };
 
@@ -483,12 +491,12 @@ const App: React.FC = () => {
   // --- Login / Logout ---
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    sessionStorage.setItem('lumina_current_user', JSON.stringify(user));
+    sessionStorage.setItem('spotlink_current_user', JSON.stringify(user));
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    sessionStorage.removeItem('lumina_current_user');
+    sessionStorage.removeItem('spotlink_current_user');
     setView('dashboard');
   };
 
@@ -544,6 +552,7 @@ const App: React.FC = () => {
              initialEditingTaskId={targetTaskId}
              onAddProject={handleAddProject}
              onUpdateProject={handleUpdateProject}
+             onUpdateProjects={handleUpdateProjects}
              onDeleteProject={handleDeleteProject}
              onAddTask={handleAddTask}
              onUpdateTask={handleUpdateTask}

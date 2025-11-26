@@ -106,7 +106,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ users, onLogin, onClose 
           </div>
 
           <div className="text-center mt-2">
-             <p className="text-[10px] text-slate-400 opacity-60">Test: alice@lumina.com / 1234</p>
+             <p className="text-[10px] text-slate-400 opacity-60">Test: alice@spotlink.com / 1234</p>
           </div>
         </form>
       </div>

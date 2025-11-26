@@ -5,8 +5,9 @@ import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import { ConfirmModal } from './ConfirmModal';
 
-// Set up PDF.js worker using CDN to avoid build complexity in this environment
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set up PDF.js worker using unpkg to ensure matching version and module support
+// We use .mjs for the worker as modern pdfjs-dist builds (v3+) use ES modules
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 interface AdminDocumentsProps {
   documents: DocumentItem[];
@@ -182,7 +183,7 @@ export const AdminDocuments: React.FC<AdminDocumentsProps> = ({ documents, onAdd
           )}
          <div>
            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Base de connaissances</h2>
-           <p className="text-slate-500">Importez des documents pour donner du contexte à l'assistant Lumina.</p>
+           <p className="text-slate-500">Importez des documents pour donner du contexte à l'assistant SpotLink.</p>
          </div>
       </div>
 

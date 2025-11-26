@@ -133,7 +133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
-            Portail Lumina
+            Portail SpotLink
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
             {currentUser ? `Bonjour ${currentUser.name}, votre espace de travail centralisé.` : 'Votre espace de travail centralisé.'}

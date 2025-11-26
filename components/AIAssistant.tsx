@@ -14,7 +14,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [], apiKey
     {
       id: 'welcome',
       role: 'model',
-      text: 'Bonjour ! Je suis Lumina, votre assistante virtuelle. Comment puis-je vous aider à être plus productif aujourd\'hui ?',
+      text: 'Bonjour ! Je suis SpotLink, votre assistante virtuelle. Comment puis-je vous aider à être plus productif aujourd\'hui ?',
       timestamp: new Date()
     }
   ]);
@@ -91,7 +91,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [], apiKey
           <Bot className="text-white w-5 h-5" />
         </div>
         <div>
-          <h2 className="font-semibold text-slate-800 dark:text-white">Assistant Lumina</h2>
+          <h2 className="font-semibold text-slate-800 dark:text-white">Assistant SpotLink</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Propulsé par Gemini 
             {documents.length > 0 && <span className="ml-1 text-blue-500">• {documents.length} docs indexés</span>}
@@ -134,7 +134,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ documents = [], apiKey
                </div>
                <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-tl-none flex items-center">
                   <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-                  <span className="ml-2 text-sm text-slate-400">Lumina réfléchit...</span>
+                  <span className="ml-2 text-sm text-slate-400">SpotLink réfléchit...</span>
                </div>
              </div>
           </div>

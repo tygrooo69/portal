@@ -29,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'projects', label: 'Projets & Tâches', icon: Briefcase },
     { id: 'time-manager', label: 'Gestion Temps', icon: Clock },
-    { id: 'ai-chat', label: 'Assistant Lumina', icon: MessageSquare },
+    { id: 'ai-chat', label: 'Assistant SpotLink', icon: MessageSquare },
     { id: 'settings', label: 'Paramètres', icon: Settings },
   ];
 
@@ -77,10 +77,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                ) : (
                  <div className="flex items-center space-x-3 overflow-hidden">
                     <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <span className="text-white font-bold text-xl">L</span>
+                      <span className="text-white font-bold text-xl">S</span>
                     </div>
                     <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 truncate">
-                      Lumina
+                      SpotLink
                     </span>
                  </div>
                )}
@@ -90,8 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                </button>
             </div>
 
-            {/* Bouton S'identifier placé sous le logo */}
-            {!currentUser && (
+            {/* Auth Section: Login OR Profile */}
+            {!currentUser ? (
               <button 
                 onClick={onLoginClick}
                 className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg font-medium"
@@ -100,36 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <LogIn size={20} />
                 <span>S'identifier</span>
               </button>
-            )}
-          </div>
-
-          {/* Navigation - Scrollable Area */}
-          <nav className="flex-1 px-4 space-y-2 overflow-y-auto min-h-0 custom-scrollbar">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentView === item.id || 
-                               (item.id === 'settings' && (currentView === 'admin-apps' || currentView === 'admin-docs' || currentView === 'admin-users'));
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onNavigate(item.id as ViewMode)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 group relative
-                    ${isActive 
-                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' 
-                      : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
-                    }`}
-                >
-                  <Icon size={22} className={`flex-shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'group-hover:text-slate-700 dark:group-hover:text-slate-200'}`} />
-                  <span className="font-medium truncate text-sm">{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* User Profile Section - Fixed at bottom (Only visible if logged in) */}
-          {currentUser && (
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 bg-white dark:bg-slate-900">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 group hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 group hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-700/50">
                 
                 {/* Clickable Profile Area */}
                 <div 
@@ -156,8 +128,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <LogOut size={20} />
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Navigation - Scrollable Area */}
+          <nav className="flex-1 px-4 space-y-2 overflow-y-auto min-h-0 custom-scrollbar">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentView === item.id || 
+                               (item.id === 'settings' && (currentView === 'admin-apps' || currentView === 'admin-docs' || currentView === 'admin-users'));
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onNavigate(item.id as ViewMode)}
+                  className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 group relative
+                    ${isActive 
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' 
+                      : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                    }`}
+                >
+                  <Icon size={22} className={`flex-shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'group-hover:text-slate-700 dark:group-hover:text-slate-200'}`} />
+                  <span className="font-medium truncate text-sm">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </div>
     </>

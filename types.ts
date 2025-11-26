@@ -45,6 +45,7 @@ export interface Project {
   priority?: 'low' | 'medium' | 'high';
   status?: 'active' | 'completed' | 'on-hold';
   members?: string[];
+  dependencies?: string[];
 }
 
 export interface Subtask {

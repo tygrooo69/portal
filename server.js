@@ -73,7 +73,8 @@ const SCHEMA = {
     { name: 'startDate', def: 'VARCHAR(50)' },
     { name: 'endDate', def: 'VARCHAR(50)' },
     { name: 'createdAt', def: 'VARCHAR(50)' },
-    { name: 'members', def: 'TEXT' }
+    { name: 'members', def: 'TEXT' },
+    { name: 'dependencies', def: 'LONGTEXT' }
   ],
   tasks: [
     { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
@@ -240,7 +241,8 @@ app.get('/api/data', async (req, res) => {
       // Parse JSON fields
       const projects = projectsRows.map(p => ({
         ...p,
-        members: p.members ? JSON.parse(p.members) : []
+        members: p.members ? JSON.parse(p.members) : [],
+        dependencies: p.dependencies ? JSON.parse(p.dependencies) : []
       }));
 
       const tasks = tasksRows.map(t => ({
@@ -319,9 +321,9 @@ app.post('/api/data', async (req, res) => {
       if (projects && projects.length > 0) {
         const projValues = projects.map(p => [
           p.id, p.name, p.description || '', p.color, p.status || 'active', p.priority || 'medium', p.startDate, p.endDate, p.createdAt, 
-          JSON.stringify(p.members || [])
+          JSON.stringify(p.members || []), JSON.stringify(p.dependencies || [])
         ]);
-        await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members) VALUES ?', [projValues]);
+        await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members, dependencies) VALUES ?', [projValues]);
       }
 
       // Tasks

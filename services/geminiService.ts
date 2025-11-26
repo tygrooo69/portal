@@ -112,7 +112,7 @@ export const generateAIResponse = async (
   }
 
   try {
-    let systemInstruction = "Tu es Lumina, une assistante virtuelle intelligente, élégante et concise pour un portail d'entreprise. Réponds en français de manière professionnelle et utile.";
+    let systemInstruction = "Tu es SpotLink, une assistante virtuelle intelligente, élégante et concise pour un portail d'entreprise. Réponds en français de manière professionnelle et utile.";
 
     // Inject document context if available using RAG logic
     if (documents && documents.length > 0) {

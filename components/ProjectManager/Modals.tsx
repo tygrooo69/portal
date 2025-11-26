@@ -376,13 +376,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 interface ProjectModalProps {
   project: Project | Partial<Project> | null;
   users: User[];
+  allProjects?: Project[]; // For dependencies
   onSave: (project: Partial<Project>) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
   isNew?: boolean;
 }
 
-export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSave, onDelete, onClose, isNew }) => {
+export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], onSave, onDelete, onClose, isNew }) => {
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     description: '',
@@ -390,7 +391,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSa
     endDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
     priority: 'medium',
     status: 'active',
-    members: []
+    members: [],
+    dependencies: []
   });
 
   useEffect(() => {
@@ -398,7 +400,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSa
       setFormData({ 
         ...formData, 
         ...project,
-        members: project.members || []
+        members: project.members || [],
+        dependencies: project.dependencies || []
       });
     }
   }, [project]);
@@ -418,9 +421,20 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSa
     }
   };
 
+  const toggleDependency = (projectId: string) => {
+    const currentDeps = formData.dependencies || [];
+    if (currentDeps.includes(projectId)) {
+      setFormData({ ...formData, dependencies: currentDeps.filter(id => id !== projectId) });
+    } else {
+      setFormData({ ...formData, dependencies: [...currentDeps, projectId] });
+    }
+  };
+
   const getInitials = (name: string) => {
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
   };
+
+  const availableDependencies = allProjects.filter(p => p.id !== project?.id);
 
   if (!project && !isNew) return null;
 
@@ -508,6 +522,32 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, onSa
                   );
                 })}
              </div>
+          </div>
+
+          {/* Dependencies Selector */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
+              <Link size={12} /> Projets prérequis
+            </label>
+            {availableDependencies.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Pas d'autres projets disponibles.</p>
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 max-h-32 overflow-y-auto">
+                 {availableDependencies.map(depProj => {
+                   const isSelected = (formData.dependencies || []).includes(depProj.id);
+                   return (
+                     <div 
+                       key={depProj.id}
+                       onClick={() => toggleDependency(depProj.id)}
+                       className={`flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs mb-1 ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : 'hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent text-slate-600 dark:text-slate-400'}`}
+                     >
+                        <div className={`w-3 h-3 rounded-full ${depProj.color}`} />
+                        <span className="truncate">{depProj.name}</span>
+                     </div>
+                   );
+                 })}
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 mt-6">

@@ -35,7 +35,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   useEffect(() => {
     // Check session storage for persistence during session
-    if (sessionStorage.getItem('lumina_auth') === 'true') {
+    if (sessionStorage.getItem('spotlink_auth') === 'true') {
       setIsAuthenticated(true);
     }
   }, []);
@@ -44,7 +44,7 @@ export const Settings: React.FC<SettingsProps> = ({
     e.preventDefault();
     if (inputPassword === currentPassword) {
       setIsAuthenticated(true);
-      sessionStorage.setItem('lumina_auth', 'true');
+      sessionStorage.setItem('spotlink_auth', 'true');
       setError('');
     } else {
       setError('Mot de passe incorrect');
@@ -220,7 +220,7 @@ export const Settings: React.FC<SettingsProps> = ({
                  {logo ? (
                    <img src={logo} alt="Logo Preview" className="w-full h-full object-contain" />
                  ) : (
-                   <span className="text-2xl font-bold text-slate-300">L</span>
+                   <span className="text-2xl font-bold text-slate-300">S</span>
                  )}
               </div>
               <div className="flex-1 w-full">
@@ -298,7 +298,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
         
         <div className="text-center text-xs text-slate-400 pt-4">
-          Lumina Portal v1.7.0 • Build 2024
+          SpotLink Portal v1.7.0 • Build 2024
         </div>
       </div>
     </div>

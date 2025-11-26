@@ -8,6 +8,7 @@ type GanttScope = 'day' | 'week' | 'month';
 interface GanttViewProps {
   items: (Task | Project)[];
   allTasks?: Task[]; // To calculate lines
+  allProjects?: Project[]; // To calculate lines for projects
   isProjects: boolean;
   onUpdateTask?: (task: Task) => void;
   onUpdateProject?: (project: Project) => void;
@@ -17,6 +18,7 @@ interface GanttViewProps {
 export const GanttView: React.FC<GanttViewProps> = ({ 
   items, 
   allTasks = [],
+  allProjects = [],
   isProjects, 
   onUpdateTask, 
   onUpdateProject,
@@ -147,7 +149,8 @@ export const GanttView: React.FC<GanttViewProps> = ({
 
   // --- Render Lines SVG ---
   const renderDependencyLines = () => {
-    if (isProjects || !allTasks.length) return null;
+    // If showing tasks, need allTasks. If showing projects, dependencies are within the projects list itself usually.
+    if (!isProjects && !allTasks.length) return null;
 
     return (
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
@@ -160,23 +163,23 @@ export const GanttView: React.FC<GanttViewProps> = ({
           </marker>
         </defs>
         {items.map((item, index) => {
-          const task = item as Task;
-          if (!task.dependencies || task.dependencies.length === 0) return null;
+          const dependencies = (item as any).dependencies; // Both Task and Project now have dependencies
+          if (!dependencies || dependencies.length === 0) return null;
 
-          const metrics = getItemMetrics(task);
+          const metrics = getItemMetrics(item);
           if (!metrics.visible) return null;
 
           const rowHeight = 56; // 40px bar + 16px gap
           const currentY = (index * rowHeight) + 20 + 16; // Top offset + half height + padding
 
-          return task.dependencies.map(depId => {
-            const depTaskIndex = items.findIndex(i => i.id === depId);
-            if (depTaskIndex === -1) return null; // Prerequisite not in view/filtered out
+          return dependencies.map((depId: string) => {
+            const depIndex = items.findIndex(i => i.id === depId);
+            if (depIndex === -1) return null; // Prerequisite not in current view
 
-            const depTask = items[depTaskIndex];
-            const depMetrics = getItemMetrics(depTask);
+            const depItem = items[depIndex];
+            const depMetrics = getItemMetrics(depItem);
             
-            const depY = (depTaskIndex * rowHeight) + 20 + 16;
+            const depY = (depIndex * rowHeight) + 20 + 16;
             
             // Start Point (End of Prerequisite)
             const x1 = depMetrics.left + depMetrics.width;
@@ -187,7 +190,6 @@ export const GanttView: React.FC<GanttViewProps> = ({
             const y2 = currentY;
 
             // Orthogonal Path Logic: Start -> Right (15px) -> Down/Up -> Left/Right -> End
-            // Use simple L shapes or U shapes
             let path = "";
             const spur = 15;
 
@@ -195,16 +197,14 @@ export const GanttView: React.FC<GanttViewProps> = ({
               // Standard forward flow: Right -> Down -> Right
               path = `M ${x1} ${y1} L ${x1 + spur} ${y1} L ${x1 + spur} ${y2} L ${x2} ${y2}`;
             } else {
-              // Backward flow (Loop around): Right -> Down -> Left -> Down -> Right
-              // Or simpler: Right -> Down (midway) -> Left (behind start) -> Down -> Right
-              // Let's use simpler loop: Right -> Down -> Left -> End
+              // Backward flow (Loop around): Right -> Down -> Left -> End
               const midY = y1 + (y2 > y1 ? 20 : -20);
               path = `M ${x1} ${y1} L ${x1 + spur} ${y1} L ${x1 + spur} ${midY} L ${x2 - spur} ${midY} L ${x2 - spur} ${y2} L ${x2} ${y2}`;
             }
 
             return (
               <path 
-                key={`${depId}-${task.id}`}
+                key={`${depId}-${item.id}`}
                 d={path}
                 stroke="#94a3b8"
                 strokeWidth="1.5"

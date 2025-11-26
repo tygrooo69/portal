@@ -19,6 +19,7 @@ interface ProjectManagerProps {
   initialEditingTaskId?: string | null;
   onAddProject: (project: Project) => void;
   onUpdateProject: (project: Project) => void;
+  onUpdateProjects?: (projects: Project[]) => void; // Added for batch updates
   onDeleteProject: (id: string) => void;
   onAddTask: (task: Task) => void;
   onUpdateTask: (task: Task) => void;
@@ -37,6 +38,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   initialEditingTaskId = null,
   onAddProject,
   onUpdateProject,
+  onUpdateProjects,
   onDeleteProject,
   onAddTask,
   onUpdateTask,
@@ -142,7 +144,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       status: partialProject.status || 'active',
       startDate: partialProject.startDate || new Date().toISOString().split('T')[0],
       endDate: partialProject.endDate || new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
-      members: partialProject.members || []
+      members: partialProject.members || [],
+      dependencies: partialProject.dependencies || []
     };
 
     if (currentUser && newProject.members && !newProject.members.includes(currentUser.id)) {
@@ -171,6 +174,64 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     };
     onAddTask(task);
     setIsAddingTask(false);
+  };
+
+  // --- CASCADING UPDATE LOGIC FOR PROJECTS ---
+  const handleProjectUpdateWithDependencies = (updatedProject: Project) => {
+    const projectsMap = new Map<string, Project>();
+    projects.forEach(p => projectsMap.set(p.id, p));
+    projectsMap.set(updatedProject.id, updatedProject);
+
+    const queue = [updatedProject];
+    const processed = new Set<string>();
+
+    while(queue.length > 0) {
+       const current = queue.shift()!;
+       if (processed.has(current.id)) continue;
+       processed.add(current.id);
+
+       // Find dependents: projects that have current.id in their dependencies list
+       const dependents = projects.filter(p => p.dependencies?.includes(current.id));
+
+       dependents.forEach(dep => {
+          const depInMemory = projectsMap.get(dep.id)!;
+          
+          const currentEnd = new Date(current.endDate || '');
+          const depStart = new Date(depInMemory.startDate || '');
+          
+          if (isNaN(currentEnd.getTime()) || isNaN(depStart.getTime())) return;
+
+          currentEnd.setHours(0,0,0,0);
+          depStart.setHours(0,0,0,0);
+
+          // If dependent starts before parent ends, push it forward
+          if (depStart < currentEnd) {
+             const duration = getDaysDiff(depInMemory.startDate || '', depInMemory.endDate || '') || 1;
+             // Start date of dependent becomes End date of parent (starts after finish)
+             const newStartDateStr = current.endDate || new Date().toISOString().split('T')[0]; 
+             const newEndDateStr = addDays(newStartDateStr, duration);
+             
+             const newDepProject = { ...depInMemory, startDate: newStartDateStr, endDate: newEndDateStr };
+             
+             projectsMap.set(newDepProject.id, newDepProject);
+             queue.push(newDepProject);
+          }
+       });
+    }
+
+    const changedProjects = Array.from(projectsMap.values()).filter(p => {
+       const original = projects.find(op => op.id === p.id);
+       return JSON.stringify(original) !== JSON.stringify(p);
+    });
+
+    if (changedProjects.length > 0) {
+      if (onUpdateProjects) {
+        onUpdateProjects(changedProjects);
+      } else {
+        // Fallback if batch update not available
+        changedProjects.forEach(p => onUpdateProject(p));
+      }
+    }
   };
 
   const handleTaskUpdateWithDependencies = (updatedTask: Task) => {
@@ -469,7 +530,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                activeProjectId={activeProjectId}
                onUpdateTask={handleTaskUpdateWithDependencies}
                onDeleteTask={requestDeleteTask}
-               onUpdateProject={onUpdateProject}
+               onUpdateProject={handleProjectUpdateWithDependencies}
                onDeleteProject={requestDeleteProject}
                onEditTask={setEditingTask}
                onEditProject={setEditingProject}
@@ -480,9 +541,10 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
              <GanttView 
                items={activeProjectId ? projectTasks : filteredProjects}
                allTasks={activeProjectId ? projectTasks : []}
+               allProjects={!activeProjectId ? projects : undefined}
                isProjects={!activeProjectId}
                onUpdateTask={handleTaskUpdateWithDependencies}
-               onUpdateProject={onUpdateProject}
+               onUpdateProject={handleProjectUpdateWithDependencies}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
              />
           )}
@@ -549,7 +611,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         <ProjectModal 
           project={editingProject}
           users={users}
-          onSave={(updated) => onUpdateProject(updated as Project)}
+          allProjects={projects}
+          onSave={(updated) => handleProjectUpdateWithDependencies(updated as Project)}
           onDelete={(id) => requestDeleteProject(id)}
           onClose={() => setEditingProject(null)}
         />
