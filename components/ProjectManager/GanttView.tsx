@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, Filter, GripVertical } from 'lucide-react';
 import { Project, Task } from '../../types';
 import { addDays, getDaysDiff } from './utils';
 
@@ -12,6 +13,7 @@ interface GanttViewProps {
   isProjects: boolean;
   onUpdateTask?: (task: Task) => void;
   onUpdateProject?: (project: Project) => void;
+  onReorder?: (newOrder: (Task | Project)[]) => void;
   onEdit: (item: any) => void;
 }
 
@@ -22,13 +24,14 @@ export const GanttView: React.FC<GanttViewProps> = ({
   isProjects, 
   onUpdateTask, 
   onUpdateProject,
+  onReorder,
   onEdit 
 }) => {
   const [viewStartDate, setViewStartDate] = useState<Date>(new Date(new Date().setDate(new Date().getDate() - 3)));
   const [ganttScope, setGanttScope] = useState<GanttScope>('day');
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Drag State
+  // Time Drag State
   const [dragState, setDragState] = useState<{
     itemId: string;
     type: 'move' | 'resize';
@@ -37,6 +40,9 @@ export const GanttView: React.FC<GanttViewProps> = ({
     originalEnd: string;
     currentDeltaDays: number;
   } | null>(null);
+
+  // Vertical Sort Drag State
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const ganttConfig = useMemo(() => {
     switch(ganttScope) {
@@ -66,7 +72,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
   }
   const timelineStartTs = dates[0].getTime();
 
-  // --- DRAG LOGIC ---
+  // --- TIME DRAG LOGIC ---
   useEffect(() => {
     if (!dragState) return;
 
@@ -120,6 +126,31 @@ export const GanttView: React.FC<GanttViewProps> = ({
       originalEnd: item.endDate || new Date().toISOString().split('T')[0],
       currentDeltaDays: 0
     });
+  };
+
+  // --- VERTICAL DRAG LOGIC ---
+  const handleSortDragStart = (e: React.DragEvent, index: number) => {
+    setDraggingIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // Make drag image transparent or minimal if needed, but default is usually fine for rows
+  };
+
+  const handleSortDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault(); // Necessary to allow dropping
+    if (draggingIndex === null || draggingIndex === index) return;
+  };
+
+  const handleSortDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggingIndex === null || draggingIndex === index) return;
+
+    if (onReorder) {
+      const newItems = [...items];
+      const [removed] = newItems.splice(draggingIndex, 1);
+      newItems.splice(index, 0, removed);
+      onReorder(newItems);
+    }
+    setDraggingIndex(null);
   };
 
   // --- Helper to calculate bar positions ---
@@ -273,7 +304,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
               
               {renderDependencyLines()}
 
-              {items.map(item => {
+              {items.map((item, index) => {
                 const metrics = getItemMetrics(item);
                 if (!metrics.visible) return null;
                 
@@ -286,14 +317,28 @@ export const GanttView: React.FC<GanttViewProps> = ({
                 const label = (item as any).title || (item as any).name;
                 const isDragging = dragState?.itemId === item.id;
                 const durationDays = Math.round(metrics.width / ganttConfig.colWidth);
+                const isSorting = draggingIndex === index;
 
                 return (
-                  <div key={item.id} className="relative h-10 group print:h-8">
+                  <div 
+                    key={item.id} 
+                    className={`relative h-10 group print:h-8 transition-opacity ${isSorting ? 'opacity-40' : 'opacity-100'}`}
+                    draggable={!!onReorder}
+                    onDragStart={(e) => handleSortDragStart(e, index)}
+                    onDragOver={(e) => handleSortDragOver(e, index)}
+                    onDrop={(e) => handleSortDrop(e, index)}
+                  >
                      <div 
-                       className="absolute text-sm text-slate-600 dark:text-slate-300 font-medium truncate px-2 leading-10 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8"
+                       className="absolute text-sm text-slate-600 dark:text-slate-300 font-medium truncate px-2 leading-10 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8 flex items-center gap-1"
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
                        style={{ left: Math.max(0, metrics.left), maxWidth: Math.max(metrics.width, 200) }}
                      >
+                       {/* Drag Handle */}
+                       {!!onReorder && (
+                         <div className="cursor-move opacity-0 group-hover:opacity-50 hover:!opacity-100 text-slate-400 -ml-4 print:hidden">
+                           <GripVertical size={14} />
+                         </div>
+                       )}
                        {label}
                      </div>
                      <div 

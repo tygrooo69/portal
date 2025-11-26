@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder, Briefcase, Activity } from 'lucide-react';
+import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder, Briefcase, Activity, PieChart } from 'lucide-react';
 import { Project, Task, User, Comment } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
 import { BoardView } from './BoardView';
 import { ListView } from './ListView';
+import { AnalysisView } from './AnalysisView';
 import { TaskModal, ProjectModal } from './Modals';
 import { ConfirmModal } from '../ConfirmModal'; // Updated import path
 import { downloadCsv, getDaysDiff, addDays } from './utils';
@@ -20,10 +22,12 @@ interface ProjectManagerProps {
   onAddProject: (project: Project) => void;
   onUpdateProject: (project: Project) => void;
   onUpdateProjects?: (projects: Project[]) => void; // Added for batch updates
+  onReorderProjects?: (projects: Project[]) => void;
   onDeleteProject: (id: string) => void;
   onAddTask: (task: Task) => void;
   onUpdateTask: (task: Task) => void;
   onUpdateTasks?: (tasks: Task[]) => void;
+  onReorderTasks?: (tasks: Task[]) => void;
   onDeleteTask: (id: string) => void;
   onAddComment: (comment: Comment) => void;
 }
@@ -39,15 +43,17 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   onAddProject,
   onUpdateProject,
   onUpdateProjects,
+  onReorderProjects,
   onDeleteProject,
   onAddTask,
   onUpdateTask,
   onUpdateTasks,
+  onReorderTasks,
   onDeleteTask,
   onAddComment
 }) => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialActiveProjectId);
-  const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list'>('board');
+  const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list' | 'analysis'>('board');
   
   // Filters
   const [filterUserId, setFilterUserId] = useState<string>('all');
@@ -328,6 +334,20 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     setConfirmState({ ...confirmState, isOpen: false });
   };
 
+  const handleGanttReorder = (newItems: (Task | Project)[]) => {
+    if (activeProjectId) {
+      // Reordering Tasks
+      if (onReorderTasks) {
+        onReorderTasks(newItems as Task[]);
+      }
+    } else {
+      // Reordering Projects
+      if (onReorderProjects) {
+        onReorderProjects(newItems as Project[]);
+      }
+    }
+  };
+
   const handleExportExcel = () => {
     let csvContent = "\uFEFF"; 
     if (activeProjectId) {
@@ -512,6 +532,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                 <button onClick={() => setViewMode('board')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'board' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><CheckSquare size={16} /><span className="hidden sm:inline">Tableau</span></button>
                 <button onClick={() => setViewMode('gantt')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><BarChart2 size={16} /><span className="hidden sm:inline">Gantt</span></button>
                 <button onClick={() => setViewMode('list')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><List size={16} /><span className="hidden sm:inline">Liste</span></button>
+                <button onClick={() => setViewMode('analysis')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'analysis' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><PieChart size={16} /><span className="hidden sm:inline">Analyse</span></button>
               </div>
 
               <div className="flex gap-2 border-l border-slate-200 dark:border-slate-700 pl-2 md:pl-3 flex-shrink-0">
@@ -555,6 +576,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                isProjects={!activeProjectId}
                onUpdateTask={handleTaskUpdateWithDependencies}
                onUpdateProject={handleProjectUpdateWithDependencies}
+               onReorder={handleGanttReorder}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
              />
           )}
@@ -567,6 +589,15 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                onDelete={activeProjectId ? requestDeleteTask : requestDeleteProject}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
                onUpdateTaskStatus={(t, s) => handleTaskUpdateWithDependencies({...t, status: s})}
+            />
+          )}
+
+          {viewMode === 'analysis' && (
+            <AnalysisView 
+               tasks={activeProjectId ? projectTasks : tasks.filter(t => filteredProjects.some(p => p.id === t.projectId))}
+               projects={filteredProjects}
+               users={users}
+               isOverview={!activeProjectId}
             />
           )}
         </div>

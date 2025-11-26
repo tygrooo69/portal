@@ -276,11 +276,17 @@ const App: React.FC = () => {
   };
 
   const handleUpdateProjects = (updatedProjects: Project[]) => {
+    // This merges updates, preserving order of original list
     const newProjectsList = projects.map(p => {
       const updated = updatedProjects.find(u => u.id === p.id);
       return updated ? updated : p;
     });
     persistData(apps, documents, newProjectsList, tasks, users, comments, notifications, timesheets, leaveRequests);
+  };
+
+  const handleReorderProjects = (reorderedProjects: Project[]) => {
+    // Replaces the list entirely to update order
+    persistData(apps, documents, reorderedProjects, tasks, users, comments, notifications, timesheets, leaveRequests);
   };
 
   const handleDeleteProject = (id: string) => {
@@ -362,6 +368,41 @@ const App: React.FC = () => {
       const updated = updatedTasks.find(u => u.id === t.id);
       return updated ? updated : t;
     });
+    persistData(apps, documents, projects, newTasksList, users, comments, notifications, timesheets, leaveRequests);
+  };
+
+  const handleReorderTasks = (reorderedTasks: Task[]) => {
+    // For tasks, we need to be careful. ReorderedTasks only contains tasks for the current view/project.
+    // We need to merge this new order into the global tasks list.
+    
+    // 1. Extract IDs of tasks that are being reordered
+    const reorderedIds = reorderedTasks.map(t => t.id);
+    
+    // 2. Filter out these tasks from the global list
+    const otherTasks = tasks.filter(t => !reorderedIds.includes(t.id));
+    
+    // 3. Combine other tasks + reordered tasks (Note: this puts reordered tasks at the end or beginning depending on logic,
+    // ideally we'd want to splice them in, but simply appending the reordered group is often sufficient for "Project View" sorting)
+    // A better approach for "All Tasks" integrity:
+    // If we are in a specific project view, we replace that project's tasks block.
+    // But `tasks` is a flat list. 
+    
+    // Simple approach: Just replace the whole list if we assume the UI passed us the *entire* relevant subset + others? 
+    // No, `reorderedTasks` from GanttView is just the visible subset.
+    
+    // Correct Logic:
+    // We are reordering `reorderedTasks`.
+    // We construct a new full list:
+    // [ ...TasksBeforeProject, ...ReorderedProjectTasks, ...TasksAfterProject ]
+    // But tasks aren't guaranteed to be contiguous in the source array.
+    
+    // Easier Logic:
+    // We remove all tasks belonging to the reordered set from the master list.
+    // Then we push the reordered tasks.
+    // This changes the *global* order, but maintains the *relative* order of the specific set.
+    
+    const newTasksList = [...otherTasks, ...reorderedTasks];
+    
     persistData(apps, documents, projects, newTasksList, users, comments, notifications, timesheets, leaveRequests);
   };
 
@@ -553,10 +594,12 @@ const App: React.FC = () => {
              onAddProject={handleAddProject}
              onUpdateProject={handleUpdateProject}
              onUpdateProjects={handleUpdateProjects}
+             onReorderProjects={handleReorderProjects}
              onDeleteProject={handleDeleteProject}
              onAddTask={handleAddTask}
              onUpdateTask={handleUpdateTask}
              onUpdateTasks={handleUpdateTasks} 
+             onReorderTasks={handleReorderTasks}
              onDeleteTask={handleDeleteTask}
              onAddComment={handleAddComment}
           />
