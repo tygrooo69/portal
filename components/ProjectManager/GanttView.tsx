@@ -1,6 +1,6 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw, Filter, GripVertical } from 'lucide-react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, RotateCcw, Filter, ChevronUp, ChevronDown } from 'lucide-react';
 import { Project, Task } from '../../types';
 import { addDays, getDaysDiff } from './utils';
 
@@ -8,8 +8,8 @@ type GanttScope = 'day' | 'week' | 'month';
 
 interface GanttViewProps {
   items: (Task | Project)[];
-  allTasks?: Task[]; // To calculate lines
-  allProjects?: Project[]; // To calculate lines for projects
+  allTasks?: Task[];
+  allProjects?: Project[];
   isProjects: boolean;
   onUpdateTask?: (task: Task) => void;
   onUpdateProject?: (project: Project) => void;
@@ -31,19 +31,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
   const [ganttScope, setGanttScope] = useState<GanttScope>('day');
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Time Drag State
-  const [dragState, setDragState] = useState<{
-    itemId: string;
-    type: 'move' | 'resize';
-    startX: number;
-    originalStart: string;
-    originalEnd: string;
-    currentDeltaDays: number;
-  } | null>(null);
-
-  // Vertical Sort Drag State
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-
+  // --- CONFIGURATION ---
   const ganttConfig = useMemo(() => {
     switch(ganttScope) {
       case 'month': return { colWidth: 15, daysToRender: 180, label: 'Mois' };
@@ -52,6 +40,29 @@ export const GanttView: React.FC<GanttViewProps> = ({
     }
   }, [ganttScope]);
 
+  // --- STATE FOR DRAG OPERATIONS (TIME BARS ONLY) ---
+  
+  // 1. Visual State (for rendering the UI updates)
+  const [visualDragState, setVisualDragState] = useState<{
+    itemId: string;
+    currentDeltaDays: number;
+  } | null>(null);
+
+  // 2. Logic State (Mutable Ref for Event Listeners to avoid stale closures)
+  const dragOperation = useRef<{
+    active: boolean;
+    itemId: string;
+    type: 'move' | 'resize';
+    startX: number;
+    originalStart: string;
+    originalEnd: string;
+    currentDeltaDays: number;
+  } | null>(null);
+
+  // 3. Tooltip State
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+
+  // --- VIEW NAVIGATION ---
   const shiftView = (days: number) => {
     const newDate = new Date(viewStartDate);
     newDate.setDate(newDate.getDate() + days);
@@ -64,6 +75,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
     setViewStartDate(d);
   };
 
+  // Generate Timeline Dates
   const dates = [];
   for (let i = 0; i < ganttConfig.daysToRender; i++) {
     const d = new Date(viewStartDate);
@@ -72,99 +84,150 @@ export const GanttView: React.FC<GanttViewProps> = ({
   }
   const timelineStartTs = dates[0].getTime();
 
-  // --- TIME DRAG LOGIC ---
-  useEffect(() => {
-    if (!dragState) return;
+  // --- TIME BAR DRAG HANDLERS ---
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const pixelDelta = e.clientX - dragState.startX;
-      const daysDelta = Math.round(pixelDelta / ganttConfig.colWidth);
-      setDragState(prev => prev ? { ...prev, currentDeltaDays: daysDelta } : null);
-    };
+  const handleTimeDragStart = (e: React.MouseEvent, item: Task | Project, type: 'move' | 'resize') => {
+    e.stopPropagation(); 
+    e.preventDefault(); 
 
-    const handleMouseUp = () => {
-      if (dragState.currentDeltaDays !== 0) {
-        const item = items.find(i => i.id === dragState.itemId);
-        if (item) {
-           let newStart = dragState.originalStart;
-           let newEnd = dragState.originalEnd;
-           
-           if (dragState.type === 'move') {
-             newStart = addDays(dragState.originalStart, dragState.currentDeltaDays);
-             newEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
-           } else {
-             newEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
-             if (new Date(newEnd) < new Date(newStart)) newEnd = newStart;
-           }
+    if (e.button !== 0) return; // Only left click
 
-           if (isProjects && onUpdateProject) {
-             onUpdateProject({ ...item as Project, startDate: newStart, endDate: newEnd });
-           } else if (!isProjects && onUpdateTask) {
-             onUpdateTask({ ...item as Task, startDate: newStart, endDate: newEnd });
-           }
-        }
-      }
-      setDragState(null);
-    };
+    const start = item.startDate || new Date().toISOString().split('T')[0];
+    const end = item.endDate || new Date().toISOString().split('T')[0];
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragState, items, ganttConfig.colWidth, isProjects, onUpdateProject, onUpdateTask]);
-
-  const initDrag = (e: React.MouseEvent, itemId: string, type: 'move' | 'resize', item: any) => {
-    e.stopPropagation();
-    if (e.detail === 2) return;
-    setDragState({
-      itemId,
+    // Initialize mutable ref
+    dragOperation.current = {
+      active: true,
+      itemId: item.id,
       type,
       startX: e.clientX,
-      originalStart: item.startDate || new Date().toISOString().split('T')[0],
-      originalEnd: item.endDate || new Date().toISOString().split('T')[0],
+      originalStart: start,
+      originalEnd: end,
+      currentDeltaDays: 0
+    };
+
+    // Initialize visual state
+    setVisualDragState({
+      itemId: item.id,
       currentDeltaDays: 0
     });
+
+    setMousePos({ x: e.clientX, y: e.clientY });
+
+    // Attach global listeners
+    window.addEventListener('mousemove', handleTimeDragMove);
+    window.addEventListener('mouseup', handleTimeDragEnd);
   };
 
-  // --- VERTICAL DRAG LOGIC ---
-  const handleSortDragStart = (e: React.DragEvent, index: number) => {
-    setDraggingIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-    // Make drag image transparent or minimal if needed, but default is usually fine for rows
+  const handleTimeDragMove = (e: MouseEvent) => {
+    if (!dragOperation.current || !dragOperation.current.active) return;
+
+    const op = dragOperation.current;
+    const pixelDelta = e.clientX - op.startX;
+    const daysDelta = Math.round(pixelDelta / ganttConfig.colWidth);
+
+    // Update ref
+    op.currentDeltaDays = daysDelta;
+
+    // Update visual state (triggers render)
+    setVisualDragState(prev => {
+      if (prev?.currentDeltaDays === daysDelta) return prev; // No render if no change
+      return { ...prev!, currentDeltaDays: daysDelta };
+    });
+
+    setMousePos({ x: e.clientX, y: e.clientY });
   };
 
-  const handleSortDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault(); // Necessary to allow dropping
-    if (draggingIndex === null || draggingIndex === index) return;
-  };
+  const handleTimeDragEnd = (e: MouseEvent) => {
+    if (!dragOperation.current) return;
 
-  const handleSortDrop = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggingIndex === null || draggingIndex === index) return;
+    const op = dragOperation.current;
+    
+    // If there was movement, commit changes
+    if (op.currentDeltaDays !== 0) {
+      // Find item from props (fresh)
+      const item = items.find(i => i.id === op.itemId);
+      
+      if (item) {
+        let newStart = op.originalStart;
+        let newEnd = op.originalEnd;
 
-    if (onReorder) {
-      const newItems = [...items];
-      const [removed] = newItems.splice(draggingIndex, 1);
-      newItems.splice(index, 0, removed);
-      onReorder(newItems);
+        if (op.type === 'move') {
+          newStart = addDays(op.originalStart, op.currentDeltaDays);
+          newEnd = addDays(op.originalEnd, op.currentDeltaDays);
+        } else {
+          // Resize (Right handle only for now)
+          newEnd = addDays(op.originalEnd, op.currentDeltaDays);
+          // Prevent end date before start date
+          if (new Date(newEnd) < new Date(newStart)) {
+             newEnd = newStart;
+          }
+        }
+
+        // Trigger Update
+        if (isProjects && onUpdateProject) {
+          onUpdateProject({ ...(item as Project), startDate: newStart, endDate: newEnd });
+        } else if (!isProjects && onUpdateTask) {
+          onUpdateTask({ ...(item as Task), startDate: newStart, endDate: newEnd });
+        }
+      }
     }
-    setDraggingIndex(null);
+
+    // Cleanup
+    dragOperation.current = null;
+    setVisualDragState(null);
+    setMousePos(null);
+    window.removeEventListener('mousemove', handleTimeDragMove);
+    window.removeEventListener('mouseup', handleTimeDragEnd);
   };
 
-  // --- Helper to calculate bar positions ---
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('mousemove', handleTimeDragMove);
+      window.removeEventListener('mouseup', handleTimeDragEnd);
+    };
+  }, []);
+
+
+  // --- REORDER HANDLERS (ARROWS) ---
+
+  const handleMoveUp = (index: number) => {
+    if (index <= 0 || !onReorder) return;
+    const newItems = [...items];
+    // Swap
+    [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
+    onReorder(newItems);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index >= items.length - 1 || !onReorder) return;
+    const newItems = [...items];
+    // Swap
+    [newItems[index + 1], newItems[index]] = [newItems[index], newItems[index + 1]];
+    onReorder(newItems);
+  };
+
+
+  // --- RENDER HELPERS ---
+
+  // Calculate display metrics for an item
   const getItemMetrics = (item: Task | Project) => {
-    const isDragging = dragState?.itemId === item.id;
+    // Use drag state if active, otherwise item props
+    const isDragging = visualDragState?.itemId === item.id;
+    const op = dragOperation.current;
+
     let currentStart = item.startDate || new Date().toISOString().split('T')[0];
     let currentEnd = item.endDate || new Date().toISOString().split('T')[0];
 
-    if (isDragging) {
-      if (dragState.type === 'move') {
-        currentStart = addDays(dragState.originalStart, dragState.currentDeltaDays);
-        currentEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
+    // If dragging, calculate temporary positions based on original + delta
+    // We use 'op' (ref) for calculation source of truth if available, but visualDragState for reactivity
+    if (isDragging && op) {
+      if (op.type === 'move') {
+        currentStart = addDays(op.originalStart, visualDragState!.currentDeltaDays);
+        currentEnd = addDays(op.originalEnd, visualDragState!.currentDeltaDays);
       } else {
-        currentEnd = addDays(dragState.originalEnd, dragState.currentDeltaDays);
+        currentEnd = addDays(op.originalEnd, visualDragState!.currentDeltaDays);
         if (new Date(currentEnd) < new Date(currentStart)) currentEnd = currentStart;
       }
     }
@@ -175,12 +238,13 @@ export const GanttView: React.FC<GanttViewProps> = ({
     const left = diffDays * ganttConfig.colWidth;
     const width = durationDays * ganttConfig.colWidth;
 
-    return { left, width, visible: (diffDays + durationDays >= 0 && diffDays <= ganttConfig.daysToRender) };
+    const visible = (diffDays + durationDays >= 0) && (diffDays <= ganttConfig.daysToRender);
+
+    return { left, width, visible, currentStart, currentEnd, durationDays };
   };
 
-  // --- Render Lines SVG ---
+  // --- SVG CONNECTIONS ---
   const renderDependencyLines = () => {
-    // If showing tasks, need allTasks. If showing projects, dependencies are within the projects list itself usually.
     if (!isProjects && !allTasks.length) return null;
 
     return (
@@ -194,42 +258,36 @@ export const GanttView: React.FC<GanttViewProps> = ({
           </marker>
         </defs>
         {items.map((item, index) => {
-          const dependencies = (item as any).dependencies; // Both Task and Project now have dependencies
+          const dependencies = (item as any).dependencies;
           if (!dependencies || dependencies.length === 0) return null;
 
           const metrics = getItemMetrics(item);
           if (!metrics.visible) return null;
 
-          const rowHeight = 56; // 40px bar + 16px gap
-          const currentY = (index * rowHeight) + 20 + 16; // Top offset + half height + padding
+          const rowHeight = 40; // Fixed row height
+          const currentY = (index * rowHeight) + 20; // Middle of row
 
           return dependencies.map((depId: string) => {
             const depIndex = items.findIndex(i => i.id === depId);
-            if (depIndex === -1) return null; // Prerequisite not in current view
+            if (depIndex === -1) return null;
 
             const depItem = items[depIndex];
             const depMetrics = getItemMetrics(depItem);
             
-            const depY = (depIndex * rowHeight) + 20 + 16;
+            const depY = (depIndex * rowHeight) + 20;
             
-            // Start Point (End of Prerequisite)
             const x1 = depMetrics.left + depMetrics.width;
             const y1 = depY;
-
-            // End Point (Start of Current)
             const x2 = metrics.left;
             const y2 = currentY;
 
-            // Orthogonal Path Logic: Start -> Right (15px) -> Down/Up -> Left/Right -> End
             let path = "";
             const spur = 15;
 
             if (x2 > x1 + spur) {
-              // Standard forward flow: Right -> Down -> Right
               path = `M ${x1} ${y1} L ${x1 + spur} ${y1} L ${x1 + spur} ${y2} L ${x2} ${y2}`;
             } else {
-              // Backward flow (Loop around): Right -> Down -> Left -> End
-              const midY = y1 + (y2 > y1 ? 20 : -20);
+              const midY = y1 + (y2 > y1 ? 10 : -10); // tighter curve
               path = `M ${x1} ${y1} L ${x1 + spur} ${y1} L ${x1 + spur} ${midY} L ${x2 - spur} ${midY} L ${x2 - spur} ${y2} L ${x2} ${y2}`;
             }
 
@@ -252,8 +310,45 @@ export const GanttView: React.FC<GanttViewProps> = ({
     );
   };
 
+  // --- TOOLTIP ---
+  const DragTooltip = () => {
+    if (!visualDragState || !mousePos || !dragOperation.current) return null;
+    
+    const op = dragOperation.current;
+    const delta = visualDragState.currentDeltaDays;
+    
+    let newStart = op.originalStart;
+    let newEnd = op.originalEnd;
+    
+    if (op.type === 'move') {
+      newStart = addDays(op.originalStart, delta);
+      newEnd = addDays(op.originalEnd, delta);
+    } else {
+      newEnd = addDays(op.originalEnd, delta);
+      if (new Date(newEnd) < new Date(newStart)) newEnd = newStart;
+    }
+
+    return (
+      <div 
+        className="fixed z-[9999] bg-slate-800 text-white text-xs px-2 py-1.5 rounded shadow-lg pointer-events-none transform -translate-x-1/2 -translate-y-full -mt-2"
+        style={{ left: mousePos.x, top: mousePos.y }}
+      >
+        <div className="flex flex-col items-center whitespace-nowrap">
+          <span className="font-semibold">{new Date(newStart).toLocaleDateString()} - {new Date(newEnd).toLocaleDateString()}</span>
+          <span className="text-slate-400 text-[10px]">
+            {getDaysDiff(newStart, newEnd)} jours ({delta > 0 ? '+' : ''}{delta}j)
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full select-none print:border-0 print:shadow-none print:h-auto print:block">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full select-none print:border-0 print:shadow-none print:h-auto print:block relative">
+      
+      <DragTooltip />
+
+      {/* Header Controls */}
       <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 print:hidden flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button onClick={() => shiftView(-7)} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors"><ChevronLeft size={18} /></button>
@@ -271,9 +366,11 @@ export const GanttView: React.FC<GanttViewProps> = ({
         </div>
       </div>
       
+      {/* Timeline Content */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden relative print:overflow-visible print:h-auto" ref={timelineRef}>
         <div style={{ width: `${ganttConfig.daysToRender * ganttConfig.colWidth}px` }} className="min-h-full relative print:w-full print:h-auto">
-           {/* Header Row */}
+           
+           {/* Header Dates */}
            <div className="flex h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-20 print:static print:border-b-2 print:border-slate-300">
              {dates.map((date, i) => {
                const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -292,15 +389,15 @@ export const GanttView: React.FC<GanttViewProps> = ({
              })}
            </div>
 
-           {/* Grid Lines */}
+           {/* Vertical Grid Lines */}
            <div className="absolute inset-0 top-12 flex pointer-events-none z-0 print:h-full">
              {dates.map((date, i) => (
                <div key={i} className={`flex-shrink-0 border-r border-slate-100 dark:border-slate-800/50 h-full ${(date.getDay() === 0 || date.getDay() === 6) ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}`} style={{ width: `${ganttConfig.colWidth}px` }} />
              ))}
            </div>
 
-           {/* Tasks and Connections */}
-           <div className="py-4 space-y-4 relative z-10 print:space-y-6">
+           {/* Items Container */}
+           <div className="relative z-10 print:space-y-6" style={{ paddingTop: '16px', paddingBottom: '16px' }}>
               
               {renderDependencyLines()}
 
@@ -315,41 +412,62 @@ export const GanttView: React.FC<GanttViewProps> = ({
                 else if (status === 'on-hold') colorClass = 'bg-orange-500';
 
                 const label = (item as any).title || (item as any).name;
-                const isDragging = dragState?.itemId === item.id;
-                const durationDays = Math.round(metrics.width / ganttConfig.colWidth);
-                const isSorting = draggingIndex === index;
+                const isDragging = visualDragState?.itemId === item.id;
 
                 return (
                   <div 
                     key={item.id} 
-                    className={`relative h-10 group print:h-8 transition-opacity ${isSorting ? 'opacity-40' : 'opacity-100'}`}
-                    draggable={!!onReorder}
-                    onDragStart={(e) => handleSortDragStart(e, index)}
-                    onDragOver={(e) => handleSortDragOver(e, index)}
-                    onDrop={(e) => handleSortDrop(e, index)}
+                    className="relative h-10 group print:h-8"
                   >
+                     {/* Text Label with Reorder Buttons */}
                      <div 
-                       className="absolute text-sm text-slate-600 dark:text-slate-300 font-medium truncate px-2 leading-10 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8 flex items-center gap-1"
+                       className="absolute text-sm text-slate-600 dark:text-slate-300 font-medium truncate px-2 leading-10 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8 flex items-center"
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                       style={{ left: Math.max(0, metrics.left), maxWidth: Math.max(metrics.width, 200) }}
+                       style={{ left: Math.max(0, metrics.left), maxWidth: Math.max(metrics.width, 250) }}
                      >
-                       {/* Drag Handle */}
                        {!!onReorder && (
-                         <div className="cursor-move opacity-0 group-hover:opacity-50 hover:!opacity-100 text-slate-400 -ml-4 print:hidden">
-                           <GripVertical size={14} />
+                         <div className="flex flex-col gap-0.5 mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity print:hidden bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 shadow-sm scale-90">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleMoveUp(index); }}
+                              disabled={index === 0}
+                              className="p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-current transition-colors rounded-t"
+                              title="Monter"
+                            >
+                              <ChevronUp size={10} />
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleMoveDown(index); }}
+                              disabled={index === items.length - 1}
+                              className="p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-current transition-colors rounded-b"
+                              title="Descendre"
+                            >
+                              <ChevronDown size={10} />
+                            </button>
                          </div>
                        )}
-                       {label}
+                       <span className="truncate">{label}</span>
                      </div>
+
+                     {/* Time Bar */}
                      <div 
                        className={`absolute top-2 h-6 rounded-md ${colorClass} shadow-sm flex items-center px-2 group/bar ${isDragging ? 'brightness-110 shadow-lg ring-2 ring-blue-400/50 z-30' : ''} print:border print:border-slate-500`}
-                       style={{ left: `${metrics.left}px`, width: `${Math.max(metrics.width, 5)}px`, cursor: isDragging ? 'grabbing' : 'grab', opacity: 0.9 }}
-                       onMouseDown={(e) => initDrag(e, item.id, 'move', item)}
+                       style={{ 
+                         left: `${metrics.left}px`, 
+                         width: `${Math.max(metrics.width, 10)}px`, 
+                         cursor: isDragging ? 'grabbing' : 'grab', 
+                         opacity: 0.9 
+                       }}
+                       onMouseDown={(e) => handleTimeDragStart(e, item, 'move')}
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
                      >
-                       {metrics.width > 40 && <span className="text-[10px] text-white/90 truncate ml-auto pointer-events-none print:text-white">{durationDays}j</span>}
-                       <div className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize hover:bg-black/10 flex items-center justify-center rounded-r-md transition-colors z-40 print:hidden" onMouseDown={(e) => initDrag(e, item.id, 'resize', item)}>
-                         <div className="w-0.5 h-3 bg-white/50 rounded-full" />
+                       {metrics.width > 40 && <span className="text-[10px] text-white/90 truncate ml-auto pointer-events-none print:text-white select-none">{metrics.durationDays}j</span>}
+                       
+                       {/* Resize Handle (Right) */}
+                       <div 
+                         className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize hover:bg-black/10 flex items-center justify-center rounded-r-md transition-colors z-40 print:hidden" 
+                         onMouseDown={(e) => handleTimeDragStart(e, item, 'resize')}
+                       >
+                         <div className="w-0.5 h-3 bg-white/50 rounded-full pointer-events-none" />
                        </div>
                      </div>
                   </div>
