@@ -145,7 +145,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       startDate: partialProject.startDate || new Date().toISOString().split('T')[0],
       endDate: partialProject.endDate || new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
       members: partialProject.members || [],
-      dependencies: partialProject.dependencies || []
+      dependencies: partialProject.dependencies || [],
+      managerId: partialProject.managerId || currentUser?.id || '' // Default manager is creator
     };
 
     if (currentUser && newProject.members && !newProject.members.includes(currentUser.id)) {
@@ -285,12 +286,20 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
   const requestDeleteProject = (id: string) => {
     const project = projects.find(p => p.id === id);
+    if (!project) return;
+
+    // Permission check: Only manager or new projects without manager can be deleted
+    if (currentUser && project.managerId && project.managerId !== currentUser.id) {
+      alert("Seul le responsable du projet peut le supprimer.");
+      return;
+    }
+
     setConfirmState({
       isOpen: true,
       type: 'project',
       id,
       title: 'Supprimer le projet ?',
-      message: `Êtes-vous sûr de vouloir supprimer "${project?.name}" et toutes ses tâches ? Cette action est irréversible.`
+      message: `Êtes-vous sûr de vouloir supprimer "${project.name}" et toutes ses tâches ? Cette action est irréversible.`
     });
   };
 
@@ -336,15 +345,16 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       downloadCsv(csvContent, filename);
     } else {
       if (filteredProjects.length === 0) return;
-      csvContent += "Nom Projet;Description;Statut;Priorité;Date Début;Date Fin;Membres;Durée (jours)\n";
+      csvContent += "Nom Projet;Description;Responsable;Statut;Priorité;Date Début;Date Fin;Membres;Durée (jours)\n";
       filteredProjects.forEach(proj => {
         const start = proj.startDate || new Date().toISOString().split('T')[0];
         const end = proj.endDate || new Date().toISOString().split('T')[0];
         const duration = getDaysDiff(start, end);
         const safeName = proj.name.replace(/"/g, '""');
         const safeDesc = (proj.description || '').replace(/"/g, '""').replace(/\n/g, ' ');
+        const managerName = users.find(u => u.id === proj.managerId)?.name || '';
         const membersNames = proj.members?.map(mid => users.find(u => u.id === mid)?.name).join(', ') || '';
-        const row = [`"${safeName}"`, `"${safeDesc}"`, proj.status, proj.priority, start, end, `"${membersNames}"`, duration];
+        const row = [`"${safeName}"`, `"${safeDesc}"`, `"${managerName}"`, proj.status, proj.priority, start, end, `"${membersNames}"`, duration];
         csvContent += row.join(";") + "\n";
       });
       downloadCsv(csvContent, 'projets_overview.csv');
@@ -604,6 +614,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           users={users}
           onSave={handleSaveNewProject}
           onClose={() => setIsAddingProject(false)}
+          currentUser={currentUser}
         />
       )}
 
@@ -615,6 +626,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           onSave={(updated) => handleProjectUpdateWithDependencies(updated as Project)}
           onDelete={(id) => requestDeleteProject(id)}
           onClose={() => setEditingProject(null)}
+          currentUser={currentUser}
         />
       )}
     </div>

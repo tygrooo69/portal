@@ -74,7 +74,8 @@ const SCHEMA = {
     { name: 'endDate', def: 'VARCHAR(50)' },
     { name: 'createdAt', def: 'VARCHAR(50)' },
     { name: 'members', def: 'TEXT' },
-    { name: 'dependencies', def: 'LONGTEXT' }
+    { name: 'dependencies', def: 'LONGTEXT' },
+    { name: 'managerId', def: 'VARCHAR(255)' }
   ],
   tasks: [
     { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
@@ -321,9 +322,9 @@ app.post('/api/data', async (req, res) => {
       if (projects && projects.length > 0) {
         const projValues = projects.map(p => [
           p.id, p.name, p.description || '', p.color, p.status || 'active', p.priority || 'medium', p.startDate, p.endDate, p.createdAt, 
-          JSON.stringify(p.members || []), JSON.stringify(p.dependencies || [])
+          JSON.stringify(p.members || []), JSON.stringify(p.dependencies || []), p.managerId || null
         ]);
-        await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members, dependencies) VALUES ?', [projValues]);
+        await conn.query('INSERT INTO projects (id, name, description, color, status, priority, startDate, endDate, createdAt, members, dependencies, managerId) VALUES ?', [projValues]);
       }
 
       // Tasks

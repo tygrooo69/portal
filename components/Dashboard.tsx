@@ -139,7 +139,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {currentUser ? `Bonjour ${currentUser.name}, votre espace de travail centralisé.` : 'Votre espace de travail centralisé.'}
           </p>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 md:mr-12">
            <div className="hidden md:block text-right">
              <p className="text-2xl font-semibold text-slate-800 dark:text-white">{formatTime(currentTime)}</p>
              <p className="text-sm text-slate-500 capitalize">{formatDate(currentTime)}</p>

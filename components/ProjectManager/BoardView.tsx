@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Clock, User, CheckSquare } from 'lucide-react';
+import { Trash2, Clock, User, CheckSquare, ShieldCheck } from 'lucide-react';
 import { Project, Task, User as UserType } from '../../types';
 
 interface BoardViewProps {
@@ -47,37 +47,49 @@ export const BoardView: React.FC<BoardViewProps> = ({
             <span className="ml-auto text-xs bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded-full">{projects.filter(p => !p.status || p.status === 'active').length}</span>
           </h3>
           <div className="space-y-3">
-             {projects.filter(p => !p.status || p.status === 'active').map(proj => (
-                <div key={proj.id} className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-blue-100 dark:border-blue-900/30 cursor-pointer hover:border-blue-300 transition-all" onDoubleClick={() => onEditProject(proj)}>
-                   <div className="flex justify-between items-start mb-2">
-                      <p className="font-bold text-slate-800 dark:text-white">{proj.name}</p>
-                      <button onClick={(e) => { e.stopPropagation(); onDeleteProject(proj.id); }} className="text-slate-400 hover:text-red-500 no-print"><Trash2 size={14}/></button>
-                   </div>
-                   <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
-                      <span className={`px-2 py-0.5 rounded border ${proj.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
-                         {proj.priority === 'high' ? 'Haute' : proj.priority === 'low' ? 'Basse' : 'Moyenne'}
-                      </span>
-                      {proj.endDate && <span>Fin: {new Date(proj.endDate).toLocaleDateString()}</span>}
-                   </div>
-                   {proj.members && proj.members.length > 0 && (
-                     <div className="flex -space-x-1 mt-3">
-                       {proj.members.slice(0, 4).map(mid => {
-                         const user = users.find(u => u.id === mid);
-                         return user ? (
-                           <div key={user.id} className={`w-5 h-5 rounded-full ${user.color} border border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
-                             {getInitials(user.name)}
-                           </div>
-                         ) : null;
-                       })}
-                       {proj.members.length > 4 && <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[8px] text-slate-600 border border-white">+{proj.members.length - 4}</div>}
+             {projects.filter(p => !p.status || p.status === 'active').map(proj => {
+                const manager = users.find(u => u.id === proj.managerId);
+                return (
+                  <div key={proj.id} className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-blue-100 dark:border-blue-900/30 cursor-pointer hover:border-blue-300 transition-all" onDoubleClick={() => onEditProject(proj)}>
+                     <div className="flex justify-between items-start mb-2">
+                        <p className="font-bold text-slate-800 dark:text-white">{proj.name}</p>
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteProject(proj.id); }} className="text-slate-400 hover:text-red-500 no-print"><Trash2 size={14}/></button>
                      </div>
-                   )}
-                   <div className="grid grid-cols-2 gap-2 mt-3 no-print">
-                      <button onClick={(e) => { e.stopPropagation(); moveProject(proj, 'on-hold'); }} className="py-1.5 bg-orange-50 text-orange-600 rounded text-xs font-medium hover:bg-orange-100">Pause</button>
-                      <button onClick={(e) => { e.stopPropagation(); moveProject(proj, 'completed'); }} className="py-1.5 bg-green-50 text-green-600 rounded text-xs font-medium hover:bg-green-100">Terminer &rarr;</button>
-                   </div>
-                </div>
-             ))}
+                     <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
+                        <span className={`px-2 py-0.5 rounded border ${proj.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+                           {proj.priority === 'high' ? 'Haute' : proj.priority === 'low' ? 'Basse' : 'Moyenne'}
+                        </span>
+                        {proj.endDate && <span>Fin: {new Date(proj.endDate).toLocaleDateString()}</span>}
+                     </div>
+                     {/* Manager and Members */}
+                     <div className="flex items-center justify-between mt-3">
+                       <div className="flex -space-x-1">
+                         {proj.members && proj.members.slice(0, 3).map(mid => {
+                           const user = users.find(u => u.id === mid);
+                           return user ? (
+                             <div key={user.id} className={`w-5 h-5 rounded-full ${user.color} border border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
+                               {getInitials(user.name)}
+                             </div>
+                           ) : null;
+                         })}
+                         {proj.members && proj.members.length > 3 && <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[8px] text-slate-600 border border-white">+{proj.members.length - 3}</div>}
+                       </div>
+                       
+                       {manager && (
+                          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-full" title={`Responsable: ${manager.name}`}>
+                             <ShieldCheck size={10} className="text-blue-600 dark:text-blue-400" />
+                             <span className="text-[9px] font-medium text-slate-600 dark:text-slate-300">{manager.name.split(' ')[0]}</span>
+                          </div>
+                       )}
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-2 mt-3 no-print">
+                        <button onClick={(e) => { e.stopPropagation(); moveProject(proj, 'on-hold'); }} className="py-1.5 bg-orange-50 text-orange-600 rounded text-xs font-medium hover:bg-orange-100">Pause</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveProject(proj, 'completed'); }} className="py-1.5 bg-green-50 text-green-600 rounded text-xs font-medium hover:bg-green-100">Terminer &rarr;</button>
+                     </div>
+                  </div>
+                );
+             })}
           </div>
         </div>
 

@@ -46,6 +46,7 @@ export interface Project {
   status?: 'active' | 'completed' | 'on-hold';
   members?: string[];
   dependencies?: string[];
+  managerId?: string; // ID du responsable du projet
 }
 
 export interface Subtask {

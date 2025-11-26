@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Users, Send, CheckSquare, MessageSquare, List, AlertTriangle, Link } from 'lucide-react';
+import { X, Save, Trash2, Users, Send, CheckSquare, MessageSquare, List, AlertTriangle, Link, Search, ShieldCheck, UserMinus } from 'lucide-react';
 import { Project, Task, User, Comment, Subtask } from '../../types';
 
 // ConfirmModal removed - imported from shared component in parent
@@ -381,9 +381,10 @@ interface ProjectModalProps {
   onDelete?: (id: string) => void;
   onClose: () => void;
   isNew?: boolean;
+  currentUser?: User | null;
 }
 
-export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], onSave, onDelete, onClose, isNew }) => {
+export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], onSave, onDelete, onClose, isNew, currentUser }) => {
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     description: '',
@@ -392,8 +393,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     priority: 'medium',
     status: 'active',
     members: [],
-    dependencies: []
+    dependencies: [],
+    managerId: ''
   });
+
+  const [searchMemberQuery, setSearchMemberQuery] = useState('');
 
   useEffect(() => {
     if (project) {
@@ -401,10 +405,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
         ...formData, 
         ...project,
         members: project.members || [],
-        dependencies: project.dependencies || []
+        dependencies: project.dependencies || [],
+        managerId: project.managerId || ''
       });
+    } else {
+      // New project, set creator as default manager
+      if (currentUser) {
+        setFormData(prev => ({ ...prev, managerId: currentUser.id }));
+      }
     }
-  }, [project]);
+  }, [project, currentUser]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -412,13 +422,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     onClose();
   };
 
-  const toggleMember = (userId: string) => {
+  const addMember = (userId: string) => {
     const currentMembers = formData.members || [];
-    if (currentMembers.includes(userId)) {
-      setFormData({ ...formData, members: currentMembers.filter(id => id !== userId) });
-    } else {
+    if (!currentMembers.includes(userId)) {
       setFormData({ ...formData, members: [...currentMembers, userId] });
     }
+  };
+
+  const removeMember = (userId: string) => {
+    const currentMembers = formData.members || [];
+    setFormData({ ...formData, members: currentMembers.filter(id => id !== userId) });
   };
 
   const toggleDependency = (projectId: string) => {
@@ -435,6 +448,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
   };
 
   const availableDependencies = allProjects.filter(p => p.id !== project?.id);
+
+  // Filter users for search list, excluding those already selected
+  const availableUsers = users.filter(u => 
+    (u.name.toLowerCase().includes(searchMemberQuery.toLowerCase()) || 
+     u.email.toLowerCase().includes(searchMemberQuery.toLowerCase())) &&
+    !(formData.members || []).includes(u.id)
+  );
+
+  const canChangeManager = isNew || (currentUser && (currentUser.role === 'admin' || currentUser.id === formData.managerId));
 
   if (!project && !isNew) return null;
 
@@ -501,26 +523,82 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
             </div>
           </div>
 
+          {/* Project Manager Section */}
+          <div>
+             <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-2">
+               <ShieldCheck size={12} /> Responsable du projet
+             </label>
+             <select 
+               value={formData.managerId || ''} 
+               onChange={(e) => setFormData({...formData, managerId: e.target.value})}
+               disabled={!canChangeManager}
+               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               <option value="">Sélectionner un responsable</option>
+               {users.map(user => (
+                 <option key={user.id} value={user.id}>{user.name}</option>
+               ))}
+             </select>
+             {!canChangeManager && <p className="text-[10px] text-slate-400 mt-1">Seul le responsable actuel peut modifier ce champ.</p>}
+          </div>
+
+          {/* Team Selection */}
           <div>
              <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
-               <Users size={12} /> Membres de l'équipe
+               <Users size={12} /> Équipe du projet
              </label>
-             <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 max-h-32 overflow-y-auto">
-                {users.map(user => {
-                  const isSelected = (formData.members || []).includes(user.id);
-                  return (
-                    <div 
-                      key={user.id} 
-                      onClick={() => toggleMember(user.id)}
-                      className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800' : 'hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'}`}
-                    >
-                       <div className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[10px] text-white font-bold`}>
-                         {getInitials(user.name)}
-                       </div>
-                       <span className={`text-xs ${isSelected ? 'font-medium text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-400'}`}>{user.name}</span>
-                    </div>
-                  );
-                })}
+             
+             <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
+                {/* Selected Members (Chips) */}
+                {(formData.members || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {formData.members?.map(memberId => {
+                      const user = users.find(u => u.id === memberId);
+                      if (!user) return null;
+                      return (
+                        <div key={user.id} className="flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-200 dark:border-slate-600 text-xs shadow-sm">
+                           <div className={`w-4 h-4 rounded-full ${user.color} flex items-center justify-center text-[8px] text-white font-bold`}>
+                             {getInitials(user.name)}
+                           </div>
+                           <span className="max-w-[80px] truncate">{user.name}</span>
+                           <button type="button" onClick={() => removeMember(user.id)} className="text-slate-400 hover:text-red-500 ml-1"><X size={12} /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Search and Add */}
+                <div className="relative">
+                   <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                   <input 
+                     type="text" 
+                     placeholder="Rechercher un membre..."
+                     value={searchMemberQuery}
+                     onChange={(e) => setSearchMemberQuery(e.target.value)}
+                     className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                   />
+                </div>
+
+                {/* Available Users List */}
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                   {availableUsers.map(user => (
+                     <div 
+                       key={user.id} 
+                       onClick={() => addMember(user.id)}
+                       className="flex items-center gap-2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded cursor-pointer group"
+                     >
+                        <div className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[8px] text-white font-bold`}>
+                           {getInitials(user.name)}
+                        </div>
+                        <span className="text-xs text-slate-700 dark:text-slate-300 flex-1">{user.name}</span>
+                        <Users size={12} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                     </div>
+                   ))}
+                   {availableUsers.length === 0 && searchMemberQuery && (
+                     <p className="text-xs text-slate-400 text-center py-2">Aucun autre membre trouvé.</p>
+                   )}
+                </div>
              </div>
           </div>
 

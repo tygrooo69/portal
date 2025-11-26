@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ShieldCheck } from 'lucide-react';
 import { Project, Task, User } from '../../types';
 
 interface ListViewProps {
@@ -25,6 +25,7 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
             <th className="px-6 py-4">Statut</th>
             <th className="px-6 py-4">{isProjects ? 'Projet' : 'Tâche'}</th>
             <th className="px-6 py-4">{isProjects ? 'Équipe' : 'Assigné à'}</th>
+            {isProjects && <th className="px-6 py-4">Responsable</th>}
             <th className="px-6 py-4">Priorité</th>
             <th className="px-6 py-4">Début</th>
             <th className="px-6 py-4">Fin</th>
@@ -88,6 +89,19 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
                }
              };
 
+             // Manager Renderer
+             const renderManager = () => {
+               const managerId = (item as Project).managerId;
+               const manager = users.find(u => u.id === managerId);
+               if (!manager) return <span className="text-slate-400 text-xs italic">Non assigné</span>;
+               return (
+                 <div className="flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-blue-500" />
+                    <span className="text-slate-700 dark:text-slate-300 text-xs font-medium">{manager.name}</span>
+                 </div>
+               );
+             };
+
              return (
               <tr 
                 key={item.id} 
@@ -125,6 +139,12 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
                    {renderUsers()}
                 </td>
 
+                {isProjects && (
+                  <td className="px-6 py-4">
+                    {renderManager()}
+                  </td>
+                )}
+
                 <td className="px-6 py-4">
                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border ${
                       item.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' :
@@ -154,7 +174,7 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
           })}
           {items.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
+              <td colSpan={isProjects ? 8 : 7} className="px-6 py-8 text-center text-slate-400">
                 {isProjects ? 'Aucun projet trouvé.' : 'Aucune tâche.'}
               </td>
             </tr>
