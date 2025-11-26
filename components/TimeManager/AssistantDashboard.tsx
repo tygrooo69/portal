@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Filter, CheckSquare, Square, CheckCircle, Search, X, Calendar, MapPin, Briefcase, UserPlus, Clock, User as UserIcon, Image as ImageIcon, FileText } from 'lucide-react';
+import { ArrowLeft, Filter, CheckSquare, Square, CheckCircle, Search, X, Calendar, MapPin, Briefcase, UserPlus, Clock, User as UserIcon, Image as ImageIcon, FileText, ArrowRightLeft } from 'lucide-react';
 import { User, Timesheet, LeaveRequest } from '../../types';
 import { getWeekDays } from './utils';
 import { TimesheetView } from './TimesheetView';
@@ -26,6 +26,25 @@ const getWeekNumber = (dateString: string) => {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 };
 
+// Helper to format date as DD.MM.YYYY
+const formatDateDDMMYYYY = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
+interface TransferRow {
+  id: string; // Unique ID for React key
+  date: string;
+  employeeCode: string;
+  jobTitle: string;
+  secteur: string;
+  businessId: string;
+  fixedZero: number;
+  hours: number;
+}
+
 export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
   users, timesheets, leaveRequests, onSaveTimesheet, onUpdateLeaveRequest, onAddLeaveRequest, onBack
 }) => {
@@ -44,6 +63,10 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
   const [proxyAction, setProxyAction] = useState<'timesheet' | 'leave' | null>(null);
   const [proxyUserId, setProxyUserId] = useState<string>('');
   const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
+
+  // Transfer Modal State
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferData, setTransferData] = useState<TransferRow[]>([]);
 
   // Get unique services
   const services = Array.from(new Set(users.map(u => u.service).filter(Boolean)));
@@ -144,6 +167,39 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
   const exitProxyMode = () => {
     setProxyAction(null);
     setProxyUserId('');
+  };
+
+  // --- TRANSFER HANDLERS ---
+  const handleOpenTransfer = (entry: any) => {
+    if (!selectedItem || selectedItem._type !== 'timesheet') return;
+    
+    const user = users.find(u => u.id === selectedItem.userId);
+    const manager = users.find(u => u.id === selectedItem.managerId); // Find the responsible manager
+    const weekDays = getWeekDays(new Date(selectedItem.weekStartDate));
+    
+    const rows: TransferRow[] = [];
+    
+    entry.hours.forEach((hour: number, index: number) => {
+      if (hour > 0) {
+        rows.push({
+          id: `${entry.id}-${index}`,
+          date: formatDateDDMMYYYY(weekDays[index]),
+          employeeCode: user?.employeeCode || '',
+          jobTitle: user?.jobTitle || '',
+          secteur: manager?.secteur || '', // Use manager's sector
+          businessId: entry.businessId,
+          fixedZero: 0,
+          hours: hour
+        });
+      }
+    });
+
+    setTransferData(rows);
+    setIsTransferModalOpen(true);
+  };
+
+  const handleTransferChange = (id: string, field: keyof TransferRow, value: string | number) => {
+    setTransferData(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
   };
 
   // --- CONDITIONAL RENDER: PROXY MODES ---
@@ -464,7 +520,8 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                                           </div>
                                         </th>
                                     ))}
-                                    <th className="p-3 text-right rounded-tr-lg border-l border-slate-200 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 w-24">Total</th>
+                                    <th className="p-3 text-right bg-slate-200/50 dark:bg-slate-700/50 w-24">Total</th>
+                                    <th className="p-3 w-16 rounded-tr-lg text-center">Action</th>
                                   </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -481,6 +538,15 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                                         <td className="p-3 text-right font-bold text-blue-600 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 text-lg">
                                           {entry.hours.reduce((a: number, b: number) => a + b, 0)}
                                         </td>
+                                        <td className="p-3 text-center">
+                                           <button 
+                                             onClick={() => handleOpenTransfer(entry)} 
+                                             className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-600 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 rounded-lg transition-colors"
+                                             title="Transférer les données"
+                                           >
+                                              <ArrowRightLeft size={18} />
+                                           </button>
+                                        </td>
                                     </tr>
                                   ))}
                               </tbody>
@@ -495,6 +561,7 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                                     <td className="p-3 text-right text-blue-600 text-xl border-l border-slate-200 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-900/10">
                                       {(selectedItem as Timesheet).entries.reduce((sum, e) => sum + e.hours.reduce((a,b)=>a+b,0), 0)}
                                     </td>
+                                    <td></td>
                                   </tr>
                               </tfoot>
                             </table>
@@ -572,6 +639,95 @@ export const AssistantDashboard: React.FC<AssistantDashboardProps> = ({
                  </button>
              </div>
           </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {isTransferModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-5xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col max-h-[90vh]">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <ArrowRightLeft size={20} className="text-blue-600" /> Transfert de données
+                 </h3>
+                 <button onClick={() => setIsTransferModalOpen(false)} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              </div>
+              
+              <div className="flex-1 overflow-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                 <table className="w-full text-sm text-left border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
+                       <tr className="text-slate-500 dark:text-slate-400 font-medium">
+                          <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700 min-w-[100px]">Date</th>
+                          <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700">Code Salarié</th>
+                          <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700">Poste</th>
+                          <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700">Secteur</th>
+                          <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700">N° Affaire</th>
+                          <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700 w-12 text-center">0</th>
+                          <th className="p-3 border-b border-slate-200 dark:border-slate-700 text-right">Heures</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                       {transferData.map((row) => (
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                             <td className="p-0 border-r border-slate-100 dark:border-slate-800">
+                                <input 
+                                  type="text" 
+                                  value={row.date} 
+                                  onChange={(e) => handleTransferChange(row.id, 'date', e.target.value)}
+                                  className="w-full p-3 bg-slate-50 focus:bg-white dark:bg-slate-800 dark:focus:bg-slate-900 outline-none border border-transparent focus:border-blue-500 transition-colors"
+                                />
+                             </td>
+                             <td className="p-0 border-r border-slate-100 dark:border-slate-800">
+                                <input 
+                                  type="text" 
+                                  value={row.employeeCode} 
+                                  onChange={(e) => handleTransferChange(row.id, 'employeeCode', e.target.value)}
+                                  className="w-full p-3 bg-slate-50 focus:bg-white dark:bg-slate-800 dark:focus:bg-slate-900 outline-none border border-transparent focus:border-blue-500 transition-colors"
+                                />
+                             </td>
+                             <td className="p-0 border-r border-slate-100 dark:border-slate-800">
+                                <input 
+                                  type="text" 
+                                  value={row.jobTitle} 
+                                  onChange={(e) => handleTransferChange(row.id, 'jobTitle', e.target.value)}
+                                  className="w-full p-3 bg-slate-50 focus:bg-white dark:bg-slate-800 dark:focus:bg-slate-900 outline-none border border-transparent focus:border-blue-500 transition-colors"
+                                />
+                             </td>
+                             <td className="p-0 border-r border-slate-100 dark:border-slate-800">
+                                <input 
+                                  type="text" 
+                                  value={row.secteur} 
+                                  onChange={(e) => handleTransferChange(row.id, 'secteur', e.target.value)}
+                                  className="w-full p-3 bg-slate-50 focus:bg-white dark:bg-slate-800 dark:focus:bg-slate-900 outline-none border border-transparent focus:border-blue-500 transition-colors"
+                                />
+                             </td>
+                             <td className="p-0 border-r border-slate-100 dark:border-slate-800">
+                                <input 
+                                  type="text" 
+                                  value={row.businessId} 
+                                  onChange={(e) => handleTransferChange(row.id, 'businessId', e.target.value)}
+                                  className="w-full p-3 bg-slate-50 focus:bg-white dark:bg-slate-800 dark:focus:bg-slate-900 outline-none border border-transparent focus:border-blue-500 transition-colors"
+                                />
+                             </td>
+                             <td className="p-3 text-center text-slate-400 border-r border-slate-100 dark:border-slate-800 select-none">0</td>
+                             <td className="p-0">
+                                <input 
+                                  type="number" 
+                                  value={row.hours} 
+                                  onChange={(e) => handleTransferChange(row.id, 'hours', parseFloat(e.target.value) || 0)}
+                                  className="w-full p-3 bg-slate-50 focus:bg-white dark:bg-slate-800 dark:focus:bg-slate-900 outline-none border border-transparent focus:border-blue-500 transition-colors text-right font-medium"
+                                />
+                             </td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-4">
+                 <button onClick={() => setIsTransferModalOpen(false)} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Fermer</button>
+              </div>
+           </div>
         </div>
       )}
     </div>
