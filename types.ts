@@ -102,6 +102,8 @@ export interface TimesheetEntry {
   zone: string;       // N° Zone
   site: string;       // Nom chantier
   hours: number[];    // Array of 7 numbers (Mon-Sun)
+  astreinte?: boolean; // Nouvelle case Astreinte
+  nuit?: boolean;      // Nouvelle case Nuit
 }
 
 export interface Timesheet {

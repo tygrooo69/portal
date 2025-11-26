@@ -25,7 +25,8 @@ const DEFAULT_APPS: AppItem[] = [
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>('dashboard');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Initialize sidebar state based on screen width: collapsed by default on mobile (< 768px)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [apps, setApps] = useState<AppItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);

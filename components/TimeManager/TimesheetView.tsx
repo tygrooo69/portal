@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Save, Send, ArrowLeft, Calendar as CalendarIcon, Upload, X, Image, UserPlus, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Save, Send, ArrowLeft, Calendar as CalendarIcon, Upload, X, Image, UserPlus, Copy, Moon, Phone } from 'lucide-react';
 import { User, Timesheet, TimesheetEntry } from '../../types';
 import { getMonday, getWeekDays } from './utils';
 import { ConfirmModal } from '../ConfirmModal';
@@ -11,6 +11,8 @@ interface TimesheetViewProps {
   onSaveTimesheet: (timesheet: Timesheet) => void;
   onBack: () => void;
 }
+
+const ZONE_OPTIONS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7'];
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ 
   currentUser, users, timesheets, onSaveTimesheet, onBack 
@@ -46,7 +48,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
         status: 'draft',
         type: 'standard',
         entries: [
-          { id: Date.now().toString(), businessId: '', zone: '', site: '', hours: [0,0,0,0,0,0,0] }
+          { id: Date.now().toString(), businessId: '', zone: '', site: '', hours: [0,0,0,0,0,0,0], astreinte: false, nuit: false }
         ]
       });
     }
@@ -88,7 +90,9 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
       businessId: '',
       zone: '',
       site: '',
-      hours: [0,0,0,0,0,0,0]
+      hours: [0,0,0,0,0,0,0],
+      astreinte: false,
+      nuit: false
     };
     setCurrentTimesheet({ ...currentTimesheet, entries: [...currentTimesheet.entries, newRow] });
   };
@@ -115,7 +119,9 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
       businessId: entry.businessId,
       zone: entry.zone,
       site: entry.site,
-      hours: [0, 0, 0, 0, 0, 0, 0]
+      hours: [0, 0, 0, 0, 0, 0, 0],
+      astreinte: entry.astreinte || false,
+      nuit: entry.nuit || false
     }));
 
     if (currentTimesheet) {
@@ -277,8 +283,10 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                   <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-medium">
                     <tr>
                       <th className="px-4 py-3 text-left w-32">N° Affaire</th>
-                      <th className="px-4 py-3 text-left w-24">Zone</th>
-                      <th className="px-4 py-3 text-left w-48">Chantier</th>
+                      <th className="px-4 py-3 text-left w-20">Zone</th>
+                      <th className="px-4 py-3 text-left w-40">Chantier</th>
+                      <th className="px-2 py-3 text-center w-10" title="Astreinte"><Phone size={16} className="mx-auto"/></th>
+                      <th className="px-2 py-3 text-center w-10" title="Nuit"><Moon size={16} className="mx-auto"/></th>
                       {weekDays.map((day, i) => (
                         <th key={i} className="px-2 py-3 text-center min-w-[60px]">
                           <div className="flex flex-col">
@@ -305,14 +313,17 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                             />
                           </td>
                           <td className="px-4 py-2">
-                            <input 
-                              type="text" 
+                            <select 
                               disabled={isReadOnly}
                               value={entry.zone}
                               onChange={(e) => handleEntryChange(entry.id, 'zone', e.target.value)}
                               className="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                              placeholder="Ex: Z1"
-                            />
+                            >
+                              <option value="">-</option>
+                              {ZONE_OPTIONS.map(z => (
+                                <option key={z} value={z}>{z}</option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-4 py-2">
                             <input 
@@ -323,6 +334,24 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                               className="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
                               placeholder="Nom du chantier"
                             />
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                             <input 
+                               type="checkbox"
+                               disabled={isReadOnly}
+                               checked={entry.astreinte || false}
+                               onChange={(e) => handleEntryChange(entry.id, 'astreinte', e.target.checked)}
+                               className="rounded text-blue-600 focus:ring-blue-500"
+                             />
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                             <input 
+                               type="checkbox"
+                               disabled={isReadOnly}
+                               checked={entry.nuit || false}
+                               onChange={(e) => handleEntryChange(entry.id, 'nuit', e.target.checked)}
+                               className="rounded text-blue-600 focus:ring-blue-500"
+                             />
                           </td>
                           {entry.hours.map((h, i) => (
                             <td key={i} className="px-2 py-2">
@@ -352,7 +381,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                   </tbody>
                   <tfoot className="bg-slate-50 dark:bg-slate-800/50 font-bold text-slate-700 dark:text-slate-300">
                     <tr>
-                      <td colSpan={3} className="px-4 py-3 text-right">Total</td>
+                      <td colSpan={5} className="px-4 py-3 text-right">Total</td>
                       {weekDays.map((_, i) => (
                         <td key={i} className="px-2 py-3 text-center">
                           {currentTimesheet?.entries.reduce((sum, entry) => sum + (entry.hours[i] || 0), 0)}
@@ -387,14 +416,17 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                       </div>
                       <div>
                         <label className="text-[10px] uppercase text-slate-400 font-semibold block mb-1">Zone</label>
-                        <input 
-                          type="text" 
+                        <select 
                           disabled={isReadOnly}
                           value={entry.zone}
                           onChange={(e) => handleEntryChange(entry.id, 'zone', e.target.value)}
                           className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-                          placeholder="Z..."
-                        />
+                        >
+                          <option value="">-</option>
+                          {ZONE_OPTIONS.map(z => (
+                            <option key={z} value={z}>{z}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-span-2">
                         <label className="text-[10px] uppercase text-slate-400 font-semibold block mb-1">Chantier</label>
@@ -406,6 +438,29 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({
                           className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
                           placeholder="Nom du chantier"
                         />
+                      </div>
+                      {/* Options Astreinte/Nuit Mobile */}
+                      <div className="col-span-2 flex gap-4 mt-1">
+                         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                            <input 
+                              type="checkbox" 
+                              disabled={isReadOnly}
+                              checked={entry.astreinte || false}
+                              onChange={(e) => handleEntryChange(entry.id, 'astreinte', e.target.checked)}
+                              className="rounded text-blue-600"
+                            />
+                            ASTREINTE
+                         </label>
+                         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                            <input 
+                              type="checkbox" 
+                              disabled={isReadOnly}
+                              checked={entry.nuit || false}
+                              onChange={(e) => handleEntryChange(entry.id, 'nuit', e.target.checked)}
+                              className="rounded text-blue-600"
+                            />
+                            NUIT
+                         </label>
                       </div>
                    </div>
 
