@@ -34,7 +34,7 @@ if (useMySQL) {
     multipleStatements: true 
   });
   
-  // Initialize Tables
+  // Initialize Tables with Auto-Migration
   initDB().catch(err => {
     console.error("FATAL: Failed to initialize database tables.", err);
     process.exit(1);
@@ -48,169 +48,152 @@ if (useMySQL) {
   })();
 }
 
+// Schema Definition for Auto-Migration
+const SCHEMA = {
+  users: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'name', def: 'VARCHAR(255)' },
+    { name: 'email', def: 'VARCHAR(255)' },
+    { name: 'password', def: 'VARCHAR(255)' },
+    { name: 'avatar', def: 'TEXT' },
+    { name: 'color', def: 'VARCHAR(50)' },
+    { name: 'role', def: "VARCHAR(20) DEFAULT 'user'" },
+    { name: 'service', def: 'VARCHAR(100)' },
+    { name: 'employeeCode', def: 'VARCHAR(50)' },
+    { name: 'jobTitle', def: 'VARCHAR(100)' },
+    { name: 'secteur', def: 'VARCHAR(100)' }
+  ],
+  projects: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'name', def: 'VARCHAR(255)' },
+    { name: 'description', def: 'TEXT' },
+    { name: 'color', def: 'VARCHAR(50)' },
+    { name: 'status', def: 'VARCHAR(50)' },
+    { name: 'priority', def: 'VARCHAR(50)' },
+    { name: 'startDate', def: 'VARCHAR(50)' },
+    { name: 'endDate', def: 'VARCHAR(50)' },
+    { name: 'createdAt', def: 'VARCHAR(50)' },
+    { name: 'members', def: 'TEXT' }
+  ],
+  tasks: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'projectId', def: 'VARCHAR(255)' },
+    { name: 'title', def: 'VARCHAR(255)' },
+    { name: 'description', def: 'TEXT' },
+    { name: 'status', def: 'VARCHAR(50)' },
+    { name: 'priority', def: 'VARCHAR(50)' },
+    { name: 'startDate', def: 'VARCHAR(50)' },
+    { name: 'endDate', def: 'VARCHAR(50)' },
+    { name: 'assignee', def: 'VARCHAR(255)' },
+    { name: 'subtasks', def: 'LONGTEXT' },
+    { name: 'dependencies', def: 'LONGTEXT' }
+  ],
+  comments: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'taskId', def: 'VARCHAR(255)' },
+    { name: 'userId', def: 'VARCHAR(255)' },
+    { name: 'text', def: 'TEXT' },
+    { name: 'createdAt', def: 'VARCHAR(50)' }
+  ],
+  notifications: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'userId', def: 'VARCHAR(255)' },
+    { name: 'type', def: 'VARCHAR(50)' },
+    { name: 'message', def: 'TEXT' },
+    { name: 'isRead', def: 'BOOLEAN' },
+    { name: 'createdAt', def: 'VARCHAR(50)' },
+    { name: 'linkProjectId', def: 'VARCHAR(255)' },
+    { name: 'linkTaskId', def: 'VARCHAR(255)' }
+  ],
+  timesheets: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'userId', def: 'VARCHAR(255)' },
+    { name: 'managerId', def: 'VARCHAR(255)' },
+    { name: 'weekStartDate', def: 'VARCHAR(20)' },
+    { name: 'status', def: 'VARCHAR(20)' },
+    { name: 'entries', def: 'LONGTEXT' },
+    { name: 'rejectionReason', def: 'TEXT' },
+    { name: 'submittedAt', def: 'VARCHAR(50)' },
+    { name: 'isProcessed', def: 'BOOLEAN DEFAULT FALSE' },
+    { name: 'type', def: "VARCHAR(20) DEFAULT 'standard'" },
+    { name: 'interimName', def: 'VARCHAR(255)' },
+    { name: 'attachments', def: 'LONGTEXT' }
+  ],
+  leave_requests: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'userId', def: 'VARCHAR(255)' },
+    { name: 'managerId', def: 'VARCHAR(255)' },
+    { name: 'type', def: 'VARCHAR(20)' },
+    { name: 'startDate', def: 'VARCHAR(50)' },
+    { name: 'endDate', def: 'VARCHAR(50)' },
+    { name: 'halfDay', def: 'VARCHAR(20)' },
+    { name: 'reason', def: 'TEXT' },
+    { name: 'status', def: 'VARCHAR(20)' },
+    { name: 'rejectionReason', def: 'TEXT' },
+    { name: 'createdAt', def: 'VARCHAR(50)' },
+    { name: 'isProcessed', def: 'BOOLEAN DEFAULT FALSE' }
+  ],
+  apps: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'name', def: 'VARCHAR(255)' },
+    { name: 'description', def: 'TEXT' },
+    { name: 'icon', def: 'VARCHAR(100)' },
+    { name: 'color', def: 'VARCHAR(50)' },
+    { name: 'category', def: 'VARCHAR(50)' },
+    { name: 'url', def: 'TEXT' }
+  ],
+  documents: [
+    { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'name', def: 'VARCHAR(255)' },
+    { name: 'type', def: 'VARCHAR(50)' },
+    { name: 'uploadDate', def: 'VARCHAR(50)' },
+    { name: 'content', def: 'LONGTEXT' }
+  ],
+  settings: [
+    { name: 'id', def: 'INT PRIMARY KEY DEFAULT 1' },
+    { name: 'apiKey', def: 'TEXT' },
+    { name: 'adminPassword', def: 'TEXT' },
+    { name: 'logo', def: 'LONGTEXT' }
+  ]
+};
+
 async function initDB() {
   if (!pool) return;
   const conn = await pool.getConnection();
   try {
-    console.log("Checking database schema...");
-    
-    // Users Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255),
-        email VARCHAR(255),
-        password VARCHAR(255),
-        avatar TEXT,
-        color VARCHAR(50),
-        role VARCHAR(20) DEFAULT 'user',
-        service VARCHAR(100),
-        employeeCode VARCHAR(50),
-        jobTitle VARCHAR(100),
-        secteur VARCHAR(100)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
+    console.log("⚙️  Système: Vérification de l'intégrité de la base de données...");
 
-    // Projects Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255),
-        description TEXT,
-        color VARCHAR(50),
-        status VARCHAR(50),
-        priority VARCHAR(50),
-        startDate VARCHAR(50),
-        endDate VARCHAR(50),
-        createdAt VARCHAR(50),
-        members TEXT
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
+    for (const [tableName, columns] of Object.entries(SCHEMA)) {
+      // 1. Create Table if not exists
+      const columnDefs = columns.map(c => `${c.name} ${c.def}`).join(', ');
+      await conn.query(`CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
 
-    // Tasks Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id VARCHAR(255) PRIMARY KEY,
-        projectId VARCHAR(255),
-        title VARCHAR(255),
-        description TEXT,
-        status VARCHAR(50),
-        priority VARCHAR(50),
-        startDate VARCHAR(50),
-        endDate VARCHAR(50),
-        assignee VARCHAR(255),
-        subtasks LONGTEXT,
-        dependencies LONGTEXT,
-        INDEX idx_project (projectId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
+      // 2. Check for missing columns and Add them
+      const [existingColumns] = await conn.query(`SHOW COLUMNS FROM ${tableName}`);
+      const existingColumnNames = existingColumns.map(c => c.Field.toLowerCase());
 
-    // Comments Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS comments (
-        id VARCHAR(255) PRIMARY KEY,
-        taskId VARCHAR(255),
-        userId VARCHAR(255),
-        text TEXT,
-        createdAt VARCHAR(50),
-        INDEX idx_task (taskId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
+      for (const col of columns) {
+        if (!existingColumnNames.includes(col.name.toLowerCase())) {
+          console.log(`🔧 Système: Ajout du champ manquant '${col.name}' dans la table '${tableName}'...`);
+          
+          // Handle PRIMARY KEY in ALTER specially or skip if ID already exists (ID is usually first and created with table)
+          if (col.def.includes('PRIMARY KEY')) {
+             // Skip adding primary key via ALTER if table exists (it should have it)
+             continue; 
+          }
+          
+          await conn.query(`ALTER TABLE ${tableName} ADD COLUMN ${col.name} ${col.def}`);
+        }
+      }
+    }
 
-    // Notifications Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id VARCHAR(255) PRIMARY KEY,
-        userId VARCHAR(255),
-        type VARCHAR(50),
-        message TEXT,
-        isRead BOOLEAN,
-        createdAt VARCHAR(50),
-        linkProjectId VARCHAR(255),
-        linkTaskId VARCHAR(255),
-        INDEX idx_user (userId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
+    // Init default settings if empty
+    await conn.query(`INSERT IGNORE INTO settings (id, apiKey, adminPassword, logo) VALUES (1, '', 'admin', '');`);
 
-    // Timesheets Table (Updated with managerId, isProcessed, type, interimName, attachments)
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS timesheets (
-        id VARCHAR(255) PRIMARY KEY,
-        userId VARCHAR(255),
-        managerId VARCHAR(255),
-        weekStartDate VARCHAR(20),
-        status VARCHAR(20),
-        entries LONGTEXT,
-        rejectionReason TEXT,
-        submittedAt VARCHAR(50),
-        isProcessed BOOLEAN DEFAULT FALSE,
-        type VARCHAR(20) DEFAULT 'standard',
-        interimName VARCHAR(255),
-        attachments LONGTEXT,
-        INDEX idx_user_week (userId, weekStartDate),
-        INDEX idx_manager (managerId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // Leave Requests Table (Updated with managerId and isProcessed)
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS leave_requests (
-        id VARCHAR(255) PRIMARY KEY,
-        userId VARCHAR(255),
-        managerId VARCHAR(255),
-        type VARCHAR(20),
-        startDate VARCHAR(50),
-        endDate VARCHAR(50),
-        halfDay VARCHAR(20),
-        reason TEXT,
-        status VARCHAR(20),
-        rejectionReason TEXT,
-        createdAt VARCHAR(50),
-        isProcessed BOOLEAN DEFAULT FALSE,
-        INDEX idx_user_leave (userId),
-        INDEX idx_manager_leave (managerId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // Apps Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS apps (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255),
-        description TEXT,
-        icon VARCHAR(100),
-        color VARCHAR(50),
-        category VARCHAR(50),
-        url TEXT
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // Documents Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS documents (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255),
-        type VARCHAR(50),
-        uploadDate VARCHAR(50),
-        content LONGTEXT
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // Settings Table
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS settings (
-        id INT PRIMARY KEY DEFAULT 1,
-        apiKey TEXT,
-        adminPassword TEXT,
-        logo LONGTEXT
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await conn.query(`
-      INSERT IGNORE INTO settings (id, apiKey, adminPassword, logo) VALUES (1, '', 'admin', '');
-    `);
-
-    console.log("✅ Database schema initialized.");
+    console.log("✅  Système: Base de données contrôlée et synchronisée.");
+  } catch (err) {
+    console.error("❌  Système: Erreur lors de la vérification de la base de données:", err);
+    throw err;
   } finally {
     conn.release();
   }
