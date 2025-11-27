@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder, Briefcase, Activity, PieChart, Sparkles, MessageSquare } from 'lucide-react';
 import { Project, Task, User, Comment, DocumentItem } from '../../types';
@@ -19,6 +18,7 @@ interface ProjectManagerProps {
   users: User[];
   comments: Comment[];
   documents?: DocumentItem[]; // Added documents prop
+  apiKey?: string; // Added apiKey prop
   currentUser: User | null;
   initialActiveProjectId?: string | null;
   initialEditingTaskId?: string | null;
@@ -43,6 +43,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   users,
   comments,
   documents = [],
+  apiKey,
   currentUser,
   initialActiveProjectId = null,
   initialEditingTaskId = null,
@@ -677,6 +678,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               documents={documents}
               onAddDocuments={onAddDocuments}
               onDeleteDocument={onDeleteDocument}
+              apiKey={apiKey} // Passing the apiKey here
             />
           )}
 

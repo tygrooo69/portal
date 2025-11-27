@@ -13,9 +13,10 @@ interface ProjectAIProps {
   documents: DocumentItem[];
   onAddDocuments: (docs: DocumentItem[]) => void;
   onDeleteDocument: (id: string) => void;
+  apiKey?: string; // Added apiKey prop
 }
 
-export const ProjectAI: React.FC<ProjectAIProps> = ({ project, documents, onAddDocuments, onDeleteDocument }) => {
+export const ProjectAI: React.FC<ProjectAIProps> = ({ project, documents, onAddDocuments, onDeleteDocument, apiKey }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -203,7 +204,7 @@ export const ProjectAI: React.FC<ProjectAIProps> = ({ project, documents, onAddD
       {/* Right Panel: AI Chat */}
       <div className="flex-1 h-full flex flex-col min-w-0">
          <div className="h-full bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <AIAssistant documents={projectDocs} apiKey={process.env.API_KEY} />
+            <AIAssistant documents={projectDocs} apiKey={apiKey} />
          </div>
       </div>
     </div>

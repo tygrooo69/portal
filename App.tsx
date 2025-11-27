@@ -554,6 +554,7 @@ const App: React.FC = () => {
       case 'projects':
         return (
           <ProjectManager 
+             apiKey={apiKey} // Passing apiKey to ProjectManager
              projects={authorizedProjects}
              tasks={authorizedTasks}
              users={users}
