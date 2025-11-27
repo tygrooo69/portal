@@ -418,11 +418,25 @@ export const GanttView: React.FC<GanttViewProps> = ({
                 const label = (item as any).title || (item as any).name;
                 const isDragging = visualDragState?.itemId === item.id;
 
-                // Check for checklist progress
-                const subtasks = (item as any).subtasks || [];
-                const totalSub = subtasks.length;
-                const completedSub = subtasks.filter((s: any) => s.completed).length;
-                const progressPercent = totalSub > 0 ? (completedSub / totalSub) * 100 : 0;
+                // --- PROGRESS CALCULATION ---
+                let progressPercent = 0;
+                if (isProjects) {
+                   // Calculate project progress based on task completion
+                   const projectTasks = allTasks.filter(t => t.projectId === item.id);
+                   const totalTasks = projectTasks.length;
+                   const completedTasks = projectTasks.filter(t => t.status === 'done').length;
+                   if (totalTasks > 0) {
+                      progressPercent = (completedTasks / totalTasks) * 100;
+                   }
+                } else {
+                   // Calculate task progress based on subtasks
+                   const subtasks = (item as any).subtasks || [];
+                   const totalSub = subtasks.length;
+                   const completedSub = subtasks.filter((s: any) => s.completed).length;
+                   if (totalSub > 0) {
+                      progressPercent = (completedSub / totalSub) * 100;
+                   }
+                }
 
                 return (
                   <div 
@@ -473,8 +487,8 @@ export const GanttView: React.FC<GanttViewProps> = ({
                        onMouseDown={(e) => handleTimeDragStart(e, item, 'move')}
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
                      >
-                       {/* Checklist Progress Bar Overlay - High Contrast */}
-                       {totalSub > 0 && (
+                       {/* Progress Bar Overlay - High Contrast */}
+                       {progressPercent > 0 && (
                          <div 
                            className="absolute top-0 left-0 h-full bg-black/50 pointer-events-none transition-all duration-300"
                            style={{ 
@@ -487,7 +501,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                        {metrics.width > 40 && <span className="text-xs text-white/90 truncate ml-auto pointer-events-none print:text-white select-none relative z-10 font-medium">{metrics.durationDays}j</span>}
                        
                        {/* Progress Text */}
-                       {totalSub > 0 && metrics.width > 60 && (
+                       {progressPercent > 0 && metrics.width > 60 && (
                           <span className="absolute bottom-0.5 left-2 text-[10px] text-white/90 font-bold pointer-events-none z-10">
                             {Math.round(progressPercent)}%
                           </span>

@@ -51,12 +51,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
          <h2 className="font-bold text-slate-800 dark:text-white">Projets</h2>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
         {canCreate && (
           activeProjectId ? (
              <button 
                 onClick={onAddTaskClick}
-                className="w-full flex items-center justify-center gap-2 px-3 py-3 mb-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-[1.02]"
+                className="w-full flex items-center justify-center gap-2 px-3 py-3 mb-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-[1.02]"
               >
                 <Plus size={20} />
                 <span>Nouvelle Tâche</span>
@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <button 
               onClick={onAddProjectClick}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium text-sm shadow-md shadow-blue-500/20"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium text-sm shadow-md shadow-blue-500/20"
             >
               <Plus size={18} />
               <span>Créer un projet</span>
@@ -72,19 +72,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )
         )}
 
-        <div 
+        <button 
            onClick={() => onSelectProject(null)}
-           className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors mb-2 ${
+           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all mb-6 text-left ${
               activeProjectId === null
-                ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-md ring-1 ring-slate-900/5'
+                : 'bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
            }`}
         >
-           <LayoutGrid size={16} />
-           <span className="font-medium text-sm truncate">Vue d'ensemble</span>
-        </div>
+           <div className={`p-1.5 rounded-lg ${activeProjectId === null ? 'bg-white/20' : 'bg-white dark:bg-slate-700 shadow-sm'}`}>
+              <LayoutGrid size={18} />
+           </div>
+           <span className="font-bold text-sm truncate">Vue d'ensemble</span>
+        </button>
         
-        <div className="h-px bg-slate-100 dark:bg-slate-800 mx-2 my-2"></div>
+        <div className="px-2 pb-2 pt-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+          Liste des projets
+        </div>
 
         {visibleProjects.map(project => {
           const isExpanded = expandedProjects.includes(project.id);

@@ -621,7 +621,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           {viewMode === 'gantt' && (
              <GanttView 
                items={activeProjectId ? projectTasks : filteredProjects}
-               allTasks={activeProjectId ? projectTasks : []}
+               allTasks={tasks} // Pass all tasks to allow calculation in overview
                allProjects={!activeProjectId ? projects : undefined}
                isProjects={!activeProjectId}
                onUpdateTask={handleTaskUpdateWithDependencies}
