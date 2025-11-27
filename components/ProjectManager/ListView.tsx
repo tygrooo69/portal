@@ -1,17 +1,27 @@
-import React from 'react';
-import { Trash2, ShieldCheck } from 'lucide-react';
+
+import React, { useState, Fragment } from 'react';
+import { Trash2, ShieldCheck, ChevronRight, ChevronDown, CornerDownRight, Clock, CheckSquare } from 'lucide-react';
 import { Project, Task, User } from '../../types';
 
 interface ListViewProps {
   items: (Project | Task)[];
   isProjects: boolean;
   users: User[];
+  allTasks?: Task[];
   onDelete: (id: string) => void;
   onEdit: (item: any) => void;
   onUpdateTaskStatus?: (task: Task, status: 'todo' | 'in-progress' | 'done') => void;
 }
 
-export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, onDelete, onEdit, onUpdateTaskStatus }) => {
+export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, allTasks = [], onDelete, onEdit, onUpdateTaskStatus }) => {
+  const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
+
+  const toggleProject = (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    setExpandedProjects(prev => 
+      prev.includes(projectId) ? prev.filter(id => id !== projectId) : [...prev, projectId]
+    );
+  };
   
   const getInitials = (name: string) => {
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
@@ -22,8 +32,10 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
       <table className="w-full text-sm text-left">
         <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-200 dark:border-slate-800">
           <tr>
+            {isProjects && <th className="px-2 py-4 w-8"></th>}
             <th className="px-6 py-4">Statut</th>
             <th className="px-6 py-4">{isProjects ? 'Projet' : 'Tâche'}</th>
+            <th className="px-6 py-4">Description</th>
             <th className="px-6 py-4">{isProjects ? 'Équipe' : 'Assigné à'}</th>
             {isProjects && <th className="px-6 py-4">Responsable</th>}
             <th className="px-6 py-4">Priorité</th>
@@ -36,6 +48,7 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
           {items.map(item => {
              const status = (item as any).status;
              const isDone = status === 'done' || status === 'completed';
+             const isExpanded = isProjects && expandedProjects.includes(item.id);
              
              // Badge de statut pour les tâches
              const getTaskStatusBadge = (s: string) => {
@@ -103,78 +116,161 @@ export const ListView: React.FC<ListViewProps> = ({ items, isProjects, users, on
              };
 
              return (
-              <tr 
-                key={item.id} 
-                className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer ${isDone && !isProjects ? 'opacity-60 bg-slate-50/50' : ''}`}
-                onDoubleClick={() => onEdit(item)}
-              >
-                <td className="px-6 py-4">
-                  {isProjects ? (
-                    getProjectStatusBadge(status)
-                  ) : (
-                    getTaskStatusBadge(status)
+              <Fragment key={item.id}>
+                <tr 
+                  className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer ${isDone && !isProjects ? 'opacity-60 bg-slate-50/50' : ''} ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/50' : ''}`}
+                  onDoubleClick={() => onEdit(item)}
+                  onClick={isProjects ? (e) => toggleProject(e, item.id) : undefined}
+                >
+                  {isProjects && (
+                    <td className="px-2 py-4 text-center">
+                      <button 
+                        onClick={(e) => toggleProject(e, item.id)}
+                        className="p-1 text-slate-400 hover:text-blue-500 transition-colors"
+                      >
+                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </button>
+                    </td>
                   )}
-                </td>
-                
-                <td className="px-6 py-4">
-                  {isProjects ? (
-                     <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${(item as Project).color}`} />
-                        <div>
-                          <span className="font-semibold text-slate-800 dark:text-white block">{(item as Project).name}</span>
-                          <span className="text-xs text-slate-400 truncate max-w-[150px] block">{(item as any).description}</span>
-                        </div>
-                     </div>
-                  ) : (
-                     <div>
-                       <span className={`font-medium ${isDone ? 'line-through text-slate-500' : 'text-slate-800 dark:text-white'} block`}>
-                         {(item as Task).title}
-                       </span>
-                       <span className="text-xs text-slate-400 truncate max-w-[150px] block">{(item as any).description}</span>
-                     </div>
-                  )}
-                </td>
 
-                <td className="px-6 py-4">
-                   {renderUsers()}
-                </td>
-
-                {isProjects && (
                   <td className="px-6 py-4">
-                    {renderManager()}
+                    {isProjects ? (
+                      getProjectStatusBadge(status)
+                    ) : (
+                      getTaskStatusBadge(status)
+                    )}
                   </td>
-                )}
+                  
+                  <td className="px-6 py-4">
+                    {isProjects ? (
+                       <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${(item as Project).color}`} />
+                          <div>
+                            <span className="font-semibold text-slate-800 dark:text-white block">{(item as Project).name}</span>
+                          </div>
+                       </div>
+                    ) : (
+                       <div>
+                         <span className={`font-medium ${isDone ? 'line-through text-slate-500' : 'text-slate-800 dark:text-white'} block`}>
+                           {(item as Task).title}
+                         </span>
+                       </div>
+                    )}
+                  </td>
 
-                <td className="px-6 py-4">
-                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border ${
-                      item.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' :
-                      item.priority === 'low' ? 'bg-slate-50 text-slate-600 border-slate-100' :
-                      'bg-blue-50 text-blue-600 border-blue-100'
-                   }`}>
-                      {item.priority === 'high' ? 'Haute' : item.priority === 'low' ? 'Basse' : 'Moyenne'}
-                   </span>
-                </td>
-                
-                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                  {item.startDate ? new Date(item.startDate).toLocaleDateString() : '-'}
-                </td>
-                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                  {item.endDate ? new Date(item.endDate).toLocaleDateString() : '-'}
-                </td>
-                <td className="px-6 py-4 text-right print:hidden">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-slate-500 dark:text-slate-400 truncate max-w-[200px] block" title={(item as any).description}>
+                        {(item as any).description || '-'}
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                     {renderUsers()}
+                  </td>
+
+                  {isProjects && (
+                    <td className="px-6 py-4">
+                      {renderManager()}
+                    </td>
+                  )}
+
+                  <td className="px-6 py-4">
+                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border ${
+                        item.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' :
+                        item.priority === 'low' ? 'bg-slate-50 text-slate-600 border-slate-100' :
+                        'bg-blue-50 text-blue-600 border-blue-100'
+                     }`}>
+                        {item.priority === 'high' ? 'Haute' : item.priority === 'low' ? 'Basse' : 'Moyenne'}
+                     </span>
+                  </td>
+                  
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                    {item.startDate ? new Date(item.startDate).toLocaleDateString() : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                    {item.endDate ? new Date(item.endDate).toLocaleDateString() : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right print:hidden">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+
+                {/* Drill Down Sub-Row */}
+                {isExpanded && isProjects && (
+                  <tr className="bg-slate-50/50 dark:bg-slate-900/30 animate-in fade-in duration-200">
+                    <td colSpan={10} className="p-4 pl-12">
+                       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                          <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                             <CornerDownRight size={14} />
+                             Tâches du projet
+                          </div>
+                          {allTasks.filter(t => t.projectId === item.id).length === 0 ? (
+                             <div className="p-4 text-center text-slate-400 text-sm italic">Aucune tâche associée.</div>
+                          ) : (
+                             <table className="w-full text-xs text-left">
+                                <thead>
+                                   <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                                      <th className="px-4 py-2 w-8"></th>
+                                      <th className="px-4 py-2">Titre</th>
+                                      <th className="px-4 py-2">Description</th>
+                                      <th className="px-4 py-2">Assigné à</th>
+                                      <th className="px-4 py-2">Échéance</th>
+                                      <th className="px-4 py-2 text-right">Priorité</th>
+                                   </tr>
+                                </thead>
+                                <tbody>
+                                   {allTasks.filter(t => t.projectId === item.id).map(task => {
+                                      const assignee = users.find(u => u.id === task.assignee);
+                                      return (
+                                        <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-50 dark:border-slate-800 last:border-0 transition-colors">
+                                           <td className="px-4 py-2">
+                                              {onUpdateTaskStatus && (
+                                                <button 
+                                                  onClick={() => onUpdateTaskStatus(task, task.status === 'done' ? 'in-progress' : 'done')}
+                                                  className={`w-4 h-4 rounded border flex items-center justify-center ${task.status === 'done' ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-blue-500'}`}
+                                                >
+                                                   {task.status === 'done' && <CheckSquare size={10} />}
+                                                </button>
+                                              )}
+                                           </td>
+                                           <td className={`px-4 py-2 font-medium ${task.status === 'done' ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                                              {task.title}
+                                           </td>
+                                           <td className="px-4 py-2 text-slate-500 truncate max-w-[150px]" title={task.description}>
+                                              {task.description || '-'}
+                                           </td>
+                                           <td className="px-4 py-2 text-slate-500">
+                                              {assignee ? assignee.name : '-'}
+                                           </td>
+                                           <td className="px-4 py-2 text-slate-500">
+                                              {new Date(task.endDate).toLocaleDateString()}
+                                           </td>
+                                           <td className="px-4 py-2 text-right">
+                                              <span className={`px-1.5 py-0.5 rounded border ${task.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
+                                                {task.priority === 'high' ? 'Urgent' : 'Normal'}
+                                              </span>
+                                           </td>
+                                        </tr>
+                                      );
+                                   })}
+                                </tbody>
+                             </table>
+                          )}
+                       </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
              );
           })}
           {items.length === 0 && (
             <tr>
-              <td colSpan={isProjects ? 8 : 7} className="px-6 py-8 text-center text-slate-400">
+              <td colSpan={isProjects ? 10 : 8} className="px-6 py-8 text-center text-slate-400">
                 {isProjects ? 'Aucun projet trouvé.' : 'Aucune tâche.'}
               </td>
             </tr>

@@ -71,7 +71,8 @@ export interface Task {
 
 export interface Comment {
   id: string;
-  taskId: string;
+  taskId?: string;    // Optional now
+  projectId?: string; // New field for project comments
   userId: string;
   text: string;
   createdAt: string;

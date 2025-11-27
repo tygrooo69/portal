@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Trash2, Users, Send, CheckSquare, MessageSquare, List, AlertTriangle, Link, Search, ShieldCheck, UserMinus } from 'lucide-react';
 import { Project, Task, User, Comment, Subtask } from '../../types';
@@ -394,14 +395,19 @@ interface ProjectModalProps {
   project: Project | Partial<Project> | null;
   users: User[];
   allProjects?: Project[]; // For dependencies
+  comments?: Comment[];
   onSave: (project: Partial<Project>) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
+  onAddComment?: (comment: Comment) => void;
   isNew?: boolean;
   currentUser?: User | null;
 }
 
-export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], onSave, onDelete, onClose, isNew, currentUser }) => {
+type ProjectTab = 'details' | 'comments';
+
+export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], comments = [], onSave, onDelete, onClose, onAddComment, isNew, currentUser }) => {
+  const [activeTab, setActiveTab] = useState<ProjectTab>('details');
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     description: '',
@@ -415,6 +421,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
   });
 
   const [searchMemberQuery, setSearchMemberQuery] = useState('');
+  
+  // Comments State
+  const [newComment, setNewComment] = useState('');
+  const commentsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (project) {
@@ -433,8 +443,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     }
   }, [project, currentUser]);
 
+  // Scroll to bottom of comments when tab changes or new comment added
+  useEffect(() => {
+    if (activeTab === 'comments' && commentsEndRef.current) {
+      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeTab, comments]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    onSave(formData);
+    onClose();
+  };
+
+  const handleManualSave = () => {
+    if (!formData.name) {
+      alert("Le nom du projet est obligatoire.");
+      setActiveTab('details');
+      return;
+    }
     onSave(formData);
     onClose();
   };
@@ -460,6 +487,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     }
   };
 
+  // --- Comment Logic ---
+  const handlePostComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !currentUser || !project?.id || !onAddComment) return;
+
+    const comment: Comment = {
+      id: Date.now().toString(),
+      projectId: project.id, // Use projectId instead of taskId
+      userId: currentUser.id,
+      text: newComment,
+      createdAt: new Date().toISOString()
+    };
+
+    onAddComment(comment);
+    setNewComment('');
+  };
+
+  const projectComments = comments.filter(c => c.projectId === project?.id).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
   const getInitials = (name: string) => {
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
   };
@@ -479,182 +525,261 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
 
   return (
     <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 p-6 scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">{isNew ? 'Nouveau projet' : 'Modifier le projet'}</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 p-0 scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex justify-between items-start p-6 pb-2">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white">{isNew ? 'Nouveau projet' : 'Modifier le projet'}</h2>
+            {!isNew && <p className="text-xs text-slate-500 mt-1">{formData.name}</p>}
+          </div>
           <button type="button" onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
         </div>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Nom du projet</label>
-            <input 
-              type="text" 
-              required 
-              value={formData.name || ''} 
-              onChange={(e) => setFormData({...formData, name: e.target.value})} 
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white" 
-              placeholder="Ex: Lancement Site Web"
-              autoFocus={isNew}
-            />
+        {/* Tabs */}
+        {!isNew && (
+          <div className="flex items-center gap-1 px-6 border-b border-slate-200 dark:border-slate-800">
+            <button 
+              onClick={() => setActiveTab('details')}
+              className={`pb-2 px-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'details' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+               Détails
+            </button>
+            <button 
+              onClick={() => setActiveTab('comments')}
+              className={`pb-2 px-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'comments' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+               Discussion ({projectComments.length})
+            </button>
           </div>
+        )}
+        
+        <div className="flex-1 overflow-y-auto p-6">
+          {activeTab === 'details' && (
+            <form id="project-form" onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Nom du projet</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={formData.name || ''} 
+                  onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white" 
+                  placeholder="Ex: Lancement Site Web"
+                  autoFocus={isNew}
+                />
+              </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-            <textarea
-              rows={3}
-              value={formData.description || ''} 
-              onChange={(e) => setFormData({...formData, description: e.target.value})} 
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white resize-none" 
-              placeholder="Objectif du projet..." 
-            />
-          </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={formData.description || ''} 
+                  onChange={(e) => setFormData({...formData, description: e.target.value})} 
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white resize-none" 
+                  placeholder="Objectif du projet..." 
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Date de début</label>
-              <input type="date" value={formData.startDate || ''} onChange={(e) => setFormData({...formData, startDate: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Date de fin</label>
-              <input type="date" value={formData.endDate || ''} onChange={(e) => setFormData({...formData, endDate: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm" />
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Date de début</label>
+                  <input type="date" value={formData.startDate || ''} onChange={(e) => setFormData({...formData, startDate: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Date de fin</label>
+                  <input type="date" value={formData.endDate || ''} onChange={(e) => setFormData({...formData, endDate: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm" />
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-               <label className="block text-xs font-medium text-slate-500 mb-1">Priorité</label>
-               <select value={formData.priority || 'medium'} onChange={(e) => setFormData({...formData, priority: e.target.value as any})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm">
-                 <option value="low">Basse</option>
-                 <option value="medium">Moyenne</option>
-                 <option value="high">Haute</option>
-               </select>
-            </div>
-            <div>
-               <label className="block text-xs font-medium text-slate-500 mb-1">Statut global</label>
-               <select value={formData.status || 'active'} onChange={(e) => setFormData({...formData, status: e.target.value as any})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm">
-                 <option value="active">Actif</option>
-                 <option value="on-hold">En pause</option>
-                 <option value="completed">Terminé</option>
-               </select>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Priorité</label>
+                  <select value={formData.priority || 'medium'} onChange={(e) => setFormData({...formData, priority: e.target.value as any})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm">
+                    <option value="low">Basse</option>
+                    <option value="medium">Moyenne</option>
+                    <option value="high">Haute</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Statut global</label>
+                  <select value={formData.status || 'active'} onChange={(e) => setFormData({...formData, status: e.target.value as any})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm">
+                    <option value="active">Actif</option>
+                    <option value="on-hold">En pause</option>
+                    <option value="completed">Terminé</option>
+                  </select>
+                </div>
+              </div>
 
-          {/* Project Manager Section */}
-          <div>
-             <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-2">
-               <ShieldCheck size={12} /> Responsable du projet
-             </label>
-             <select 
-               value={formData.managerId || ''} 
-               onChange={(e) => setFormData({...formData, managerId: e.target.value})}
-               disabled={!canChangeManager}
-               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <option value="">Sélectionner un responsable</option>
-               {users.map(user => (
-                 <option key={user.id} value={user.id}>{user.name}</option>
-               ))}
-             </select>
-             {!canChangeManager && <p className="text-[10px] text-slate-400 mt-1">Seul le responsable actuel peut modifier ce champ.</p>}
-          </div>
+              {/* Project Manager Section */}
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-2">
+                  <ShieldCheck size={12} /> Responsable du projet
+                </label>
+                <select 
+                  value={formData.managerId || ''} 
+                  onChange={(e) => setFormData({...formData, managerId: e.target.value})}
+                  disabled={!canChangeManager}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Sélectionner un responsable</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+                {!canChangeManager && <p className="text-[10px] text-slate-400 mt-1">Seul le responsable actuel peut modifier ce champ.</p>}
+              </div>
 
-          {/* Team Selection */}
-          <div>
-             <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
-               <Users size={12} /> Équipe du projet
-             </label>
-             
-             <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
-                {/* Selected Members (Chips) */}
-                {(formData.members || []).length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {formData.members?.map(memberId => {
-                      const user = users.find(u => u.id === memberId);
-                      if (!user) return null;
+              {/* Team Selection */}
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
+                  <Users size={12} /> Équipe du projet
+                </label>
+                
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
+                    {/* Selected Members (Chips) */}
+                    {(formData.members || []).length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {formData.members?.map(memberId => {
+                          const user = users.find(u => u.id === memberId);
+                          if (!user) return null;
+                          return (
+                            <div key={user.id} className="flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-200 dark:border-slate-600 text-xs shadow-sm">
+                              <div className={`w-4 h-4 rounded-full ${user.color} flex items-center justify-center text-[8px] text-white font-bold`}>
+                                {getInitials(user.name)}
+                              </div>
+                              <span className="max-w-[80px] truncate">{user.name}</span>
+                              <button type="button" onClick={() => removeMember(user.id)} className="text-slate-400 hover:text-red-500 ml-1"><X size={12} /></button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Search and Add */}
+                    <div className="relative">
+                      <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Rechercher un membre..."
+                        value={searchMemberQuery}
+                        onChange={(e) => setSearchMemberQuery(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+
+                    {/* Available Users List */}
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {availableUsers.map(user => (
+                        <div 
+                          key={user.id} 
+                          onClick={() => addMember(user.id)}
+                          className="flex items-center gap-2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded cursor-pointer group"
+                        >
+                            <div className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[8px] text-white font-bold`}>
+                              {getInitials(user.name)}
+                            </div>
+                            <span className="text-xs text-slate-700 dark:text-slate-300 flex-1">{user.name}</span>
+                            <Users size={12} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      ))}
+                      {availableUsers.length === 0 && searchMemberQuery && (
+                        <p className="text-xs text-slate-400 text-center py-2">Aucun autre membre trouvé.</p>
+                      )}
+                    </div>
+                </div>
+              </div>
+
+              {/* Dependencies Selector */}
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
+                  <Link size={12} /> Projets prérequis
+                </label>
+                {availableDependencies.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">Pas d'autres projets disponibles.</p>
+                ) : (
+                  <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 max-h-32 overflow-y-auto">
+                    {availableDependencies.map(depProj => {
+                      const isSelected = (formData.dependencies || []).includes(depProj.id);
                       return (
-                        <div key={user.id} className="flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-200 dark:border-slate-600 text-xs shadow-sm">
-                           <div className={`w-4 h-4 rounded-full ${user.color} flex items-center justify-center text-[8px] text-white font-bold`}>
-                             {getInitials(user.name)}
-                           </div>
-                           <span className="max-w-[80px] truncate">{user.name}</span>
-                           <button type="button" onClick={() => removeMember(user.id)} className="text-slate-400 hover:text-red-500 ml-1"><X size={12} /></button>
+                        <div 
+                          key={depProj.id}
+                          onClick={() => toggleDependency(depProj.id)}
+                          className={`flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs mb-1 ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : 'hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent text-slate-600 dark:text-slate-400'}`}
+                        >
+                            <div className={`w-3 h-3 rounded-full ${depProj.color}`} />
+                            <span className="truncate">{depProj.name}</span>
                         </div>
                       );
                     })}
                   </div>
                 )}
+              </div>
+            </form>
+          )}
 
-                {/* Search and Add */}
-                <div className="relative">
-                   <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-                   <input 
-                     type="text" 
-                     placeholder="Rechercher un membre..."
-                     value={searchMemberQuery}
-                     onChange={(e) => setSearchMemberQuery(e.target.value)}
-                     className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none"
-                   />
-                </div>
-
-                {/* Available Users List */}
-                <div className="max-h-32 overflow-y-auto space-y-1">
-                   {availableUsers.map(user => (
-                     <div 
-                       key={user.id} 
-                       onClick={() => addMember(user.id)}
-                       className="flex items-center gap-2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded cursor-pointer group"
-                     >
-                        <div className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[8px] text-white font-bold`}>
-                           {getInitials(user.name)}
-                        </div>
-                        <span className="text-xs text-slate-700 dark:text-slate-300 flex-1">{user.name}</span>
-                        <Users size={12} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                     </div>
-                   ))}
-                   {availableUsers.length === 0 && searchMemberQuery && (
-                     <p className="text-xs text-slate-400 text-center py-2">Aucun autre membre trouvé.</p>
-                   )}
-                </div>
-             </div>
-          </div>
-
-          {/* Dependencies Selector */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-2 flex items-center gap-2">
-              <Link size={12} /> Projets prérequis
-            </label>
-            {availableDependencies.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Pas d'autres projets disponibles.</p>
-            ) : (
-              <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 max-h-32 overflow-y-auto">
-                 {availableDependencies.map(depProj => {
-                   const isSelected = (formData.dependencies || []).includes(depProj.id);
+          {activeTab === 'comments' && (
+            <div className="flex flex-col h-[450px]">
+               <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+                 {projectComments.map(comment => {
+                   const user = users.find(u => u.id === comment.userId);
+                   const isMe = currentUser?.id === comment.userId;
                    return (
-                     <div 
-                       key={depProj.id}
-                       onClick={() => toggleDependency(depProj.id)}
-                       className={`flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs mb-1 ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : 'hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent text-slate-600 dark:text-slate-400'}`}
-                     >
-                        <div className={`w-3 h-3 rounded-full ${depProj.color}`} />
-                        <span className="truncate">{depProj.name}</span>
+                     <div key={comment.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <div className={`w-8 h-8 rounded-full ${user?.color || 'bg-slate-400'} flex-shrink-0 flex items-center justify-center text-xs text-white font-bold`}>
+                           {user ? getInitials(user.name) : '?'}
+                        </div>
+                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                           <div className={`px-3 py-2 rounded-xl text-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none'}`}>
+                             {comment.text}
+                           </div>
+                           <span className="text-[10px] text-slate-400 mt-1">
+                             {user?.name} • {new Date(comment.createdAt).toLocaleString()}
+                           </span>
+                        </div>
                      </div>
                    );
                  })}
-              </div>
-            )}
-          </div>
+                 {projectComments.length === 0 && (
+                   <div className="text-center text-slate-400 text-sm py-10">Aucun commentaire sur ce projet.</div>
+                 )}
+                 <div ref={commentsEndRef} />
+               </div>
 
-          <div className="pt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 mt-6">
+               <form onSubmit={handlePostComment} className="flex gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <input 
+                    type="text" 
+                    value={newComment}
+                    onChange={e => setNewComment(e.target.value)}
+                    placeholder="Discussion sur le projet..."
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
+                  />
+                  <button type="submit" disabled={!newComment.trim()} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                    <Send size={18} />
+                  </button>
+               </form>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {activeTab !== 'comments' && (
+          <div className="pt-4 p-6 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10">
             {!isNew && onDelete && formData.id && (
               <button type="button" onClick={() => onDelete(formData.id!)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Trash2 size={16} /> Supprimer</button>
             )}
             <div className={`flex gap-2 ${isNew ? 'w-full justify-end' : ''}`}>
               <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-lg text-sm font-medium">Annuler</button>
-              <button type="submit" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"><Save size={16} /> Enregistrer</button>
+              <button 
+                type={activeTab === 'details' ? 'submit' : 'button'}
+                form={activeTab === 'details' ? 'project-form' : undefined}
+                onClick={activeTab === 'details' ? undefined : handleManualSave}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <Save size={16} /> Enregistrer
+              </button>
             </div>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );

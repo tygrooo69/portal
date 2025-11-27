@@ -93,6 +93,7 @@ const SCHEMA = {
   comments: [
     { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
     { name: 'taskId', def: 'VARCHAR(255)' },
+    { name: 'projectId', def: 'VARCHAR(255)' },
     { name: 'userId', def: 'VARCHAR(255)' },
     { name: 'text', def: 'TEXT' },
     { name: 'createdAt', def: 'VARCHAR(50)' }
@@ -357,8 +358,8 @@ app.post('/api/data', async (req, res) => {
       // Comments
       await conn.query('DELETE FROM comments');
       if (comments && comments.length > 0) {
-        const comValues = comments.map(c => [c.id, c.taskId, c.userId, c.text, c.createdAt]);
-        await conn.query('INSERT INTO comments (id, taskId, userId, text, createdAt) VALUES ?', [comValues]);
+        const comValues = comments.map(c => [c.id, c.taskId || null, c.projectId || null, c.userId, c.text, c.createdAt]);
+        await conn.query('INSERT INTO comments (id, taskId, projectId, userId, text, createdAt) VALUES ?', [comValues]);
       }
 
       // Notifications

@@ -180,7 +180,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ users, onAddUser, onUpda
                   value={newUserForm.email}
                   onChange={e => setNewUserForm({...newUserForm, email: e.target.value})}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
-                  placeholder="jean@lumina.com"
+                  placeholder="jean@spotlink.com"
                 />
               </div>
               <div>

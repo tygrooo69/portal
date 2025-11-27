@@ -32,6 +32,10 @@ export const GanttView: React.FC<GanttViewProps> = ({
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // --- CONFIGURATION ---
+  const ROW_HEIGHT = 60; 
+  const BAR_HEIGHT = 36;
+  const PADDING_TOP = 16;
+
   const ganttConfig = useMemo(() => {
     switch(ganttScope) {
       case 'month': return { colWidth: 15, daysToRender: 180, label: 'Mois' };
@@ -264,8 +268,8 @@ export const GanttView: React.FC<GanttViewProps> = ({
           const metrics = getItemMetrics(item);
           if (!metrics.visible) return null;
 
-          const rowHeight = 40; // Fixed row height
-          const currentY = (index * rowHeight) + 20; // Middle of row
+          // Calculate vertical center based on row height + padding
+          const currentY = PADDING_TOP + (index * ROW_HEIGHT) + (ROW_HEIGHT / 2);
 
           return dependencies.map((depId: string) => {
             const depIndex = items.findIndex(i => i.id === depId);
@@ -274,7 +278,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
             const depItem = items[depIndex];
             const depMetrics = getItemMetrics(depItem);
             
-            const depY = (depIndex * rowHeight) + 20;
+            const depY = PADDING_TOP + (depIndex * ROW_HEIGHT) + (ROW_HEIGHT / 2);
             
             const x1 = depMetrics.left + depMetrics.width;
             const y1 = depY;
@@ -397,7 +401,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
            </div>
 
            {/* Items Container */}
-           <div className="relative z-10 print:space-y-6" style={{ paddingTop: '16px', paddingBottom: '16px' }}>
+           <div className="relative z-10 print:space-y-6" style={{ paddingTop: `${PADDING_TOP}px`, paddingBottom: '16px' }}>
               
               {renderDependencyLines()}
 
@@ -414,19 +418,26 @@ export const GanttView: React.FC<GanttViewProps> = ({
                 const label = (item as any).title || (item as any).name;
                 const isDragging = visualDragState?.itemId === item.id;
 
+                // Check for checklist progress
+                const subtasks = (item as any).subtasks || [];
+                const totalSub = subtasks.length;
+                const completedSub = subtasks.filter((s: any) => s.completed).length;
+                const progressPercent = totalSub > 0 ? (completedSub / totalSub) * 100 : 0;
+
                 return (
                   <div 
                     key={item.id} 
-                    className="relative h-10 group print:h-8"
+                    className="relative group print:h-8 border-b border-slate-100 dark:border-slate-800/50 box-border"
+                    style={{ height: `${ROW_HEIGHT}px` }}
                   >
                      {/* Text Label with Reorder Buttons */}
                      <div 
-                       className="absolute text-sm text-slate-600 dark:text-slate-300 font-medium truncate px-2 leading-10 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8 flex items-center"
+                       className="absolute text-base text-slate-700 dark:text-slate-200 font-semibold truncate px-3 cursor-pointer hover:text-blue-600 z-20 print:text-black print:text-xs print:leading-8 flex items-center h-full"
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
                        style={{ left: Math.max(0, metrics.left), maxWidth: Math.max(metrics.width, 250) }}
                      >
                        {!!onReorder && (
-                         <div className="flex flex-col gap-0.5 mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity print:hidden bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 shadow-sm scale-90">
+                         <div className="flex flex-col gap-0.5 mr-2 opacity-0 group-hover:opacity-100 transition-opacity print:hidden bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 shadow-sm scale-90">
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleMoveUp(index); }}
                               disabled={index === 0}
@@ -450,24 +461,44 @@ export const GanttView: React.FC<GanttViewProps> = ({
 
                      {/* Time Bar */}
                      <div 
-                       className={`absolute top-2 h-6 rounded-md ${colorClass} shadow-sm flex items-center px-2 group/bar ${isDragging ? 'brightness-110 shadow-lg ring-2 ring-blue-400/50 z-30' : ''} print:border print:border-slate-500`}
+                       className={`absolute rounded-lg ${colorClass} shadow-md flex items-center px-3 group/bar ${isDragging ? 'brightness-110 shadow-lg ring-2 ring-blue-400/50 z-30' : ''} print:border print:border-slate-500 overflow-hidden`}
                        style={{ 
                          left: `${metrics.left}px`, 
                          width: `${Math.max(metrics.width, 10)}px`, 
+                         height: `${BAR_HEIGHT}px`,
+                         top: `${(ROW_HEIGHT - BAR_HEIGHT) / 2}px`,
                          cursor: isDragging ? 'grabbing' : 'grab', 
                          opacity: 0.9 
                        }}
                        onMouseDown={(e) => handleTimeDragStart(e, item, 'move')}
                        onDoubleClick={(e) => { e.stopPropagation(); onEdit(item); }}
                      >
-                       {metrics.width > 40 && <span className="text-[10px] text-white/90 truncate ml-auto pointer-events-none print:text-white select-none">{metrics.durationDays}j</span>}
+                       {/* Checklist Progress Bar Overlay - High Contrast */}
+                       {totalSub > 0 && (
+                         <div 
+                           className="absolute top-0 left-0 h-full bg-black/50 pointer-events-none transition-all duration-300"
+                           style={{ 
+                             width: `${progressPercent}%`,
+                             borderRadius: progressPercent === 100 ? '8px' : '8px 0 0 8px'
+                           }}
+                         />
+                       )}
+
+                       {metrics.width > 40 && <span className="text-xs text-white/90 truncate ml-auto pointer-events-none print:text-white select-none relative z-10 font-medium">{metrics.durationDays}j</span>}
                        
+                       {/* Progress Text */}
+                       {totalSub > 0 && metrics.width > 60 && (
+                          <span className="absolute bottom-0.5 left-2 text-[10px] text-white/90 font-bold pointer-events-none z-10">
+                            {Math.round(progressPercent)}%
+                          </span>
+                       )}
+
                        {/* Resize Handle (Right) */}
                        <div 
-                         className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize hover:bg-black/10 flex items-center justify-center rounded-r-md transition-colors z-40 print:hidden" 
+                         className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize hover:bg-black/10 flex items-center justify-center rounded-r-lg transition-colors z-40 print:hidden" 
                          onMouseDown={(e) => handleTimeDragStart(e, item, 'resize')}
                        >
-                         <div className="w-0.5 h-3 bg-white/50 rounded-full pointer-events-none" />
+                         <div className="w-0.5 h-4 bg-white/50 rounded-full pointer-events-none" />
                        </div>
                      </div>
                   </div>

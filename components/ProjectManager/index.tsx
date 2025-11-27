@@ -67,6 +67,10 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
 
+  // Sidebar Resize State
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+
   // Delete Confirmation State
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -100,6 +104,41 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       }
     }
   }, [initialEditingTaskId, tasks]);
+
+  // --- SIDEBAR RESIZE LOGIC ---
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingSidebar) return;
+      // Constrain width between 200px and 600px
+      // We use the setter callback to update relative to current mouse movement for smoother UX
+      setSidebarWidth(prev => {
+        const next = prev + e.movementX;
+        if (next < 200) return 200;
+        if (next > 500) return 500;
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    if (isResizingSidebar) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none'; // Prevent text selection
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+  }, [isResizingSidebar]);
 
   // --- FILTER LOGIC ---
   
@@ -410,12 +449,23 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       {/* Sidebar hidden on mobile */}
       <Sidebar 
         projects={filteredProjects}
+        tasks={tasks}
         activeProjectId={activeProjectId}
         canCreate={!!currentUser}
         onSelectProject={setActiveProjectId}
         onAddProjectClick={() => setIsAddingProject(true)}
+        onAddTaskClick={() => setIsAddingTask(true)}
         onDeleteProject={requestDeleteProject}
         onEditProject={setEditingProject}
+        onEditTask={setEditingTask}
+        width={sidebarWidth}
+      />
+
+      {/* Resizer Handle */}
+      <div
+        className={`hidden md:block w-1 hover:w-1.5 bg-transparent hover:bg-blue-500 cursor-col-resize transition-all z-20 select-none flex-shrink-0 ${isResizingSidebar ? 'bg-blue-600 w-1.5' : ''}`}
+        onMouseDown={() => setIsResizingSidebar(true)}
+        title="Redimensionner la colonne"
       />
 
       <div className="flex-1 flex flex-col overflow-hidden" id="project-printable-area">
@@ -543,9 +593,9 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               {activeProjectId && currentUser && (
                 <button 
                   onClick={() => setIsAddingTask(true)}
-                  className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 ml-auto md:ml-2 flex-shrink-0"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-2 ml-auto md:ml-4 flex-shrink-0 shadow-md transition-all hover:scale-105"
                 >
-                  <Plus size={18} /> <span className="hidden sm:inline">Tâche</span>
+                  <Plus size={20} /> <span className="hidden sm:inline">Nouvelle Tâche</span>
                 </button>
               )}
            </div>
@@ -586,6 +636,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                items={activeProjectId ? projectTasks : filteredProjects}
                isProjects={!activeProjectId}
                users={users}
+               allTasks={tasks} // Pass all tasks to enable drilling down in overview
                onDelete={activeProjectId ? requestDeleteTask : requestDeleteProject}
                onEdit={activeProjectId ? setEditingTask : setEditingProject}
                onUpdateTaskStatus={(t, s) => handleTaskUpdateWithDependencies({...t, status: s})}
@@ -654,6 +705,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           project={editingProject}
           users={users}
           allProjects={projects}
+          comments={comments}
+          onAddComment={onAddComment}
           onSave={(updated) => handleProjectUpdateWithDependencies(updated as Project)}
           onDelete={(id) => requestDeleteProject(id)}
           onClose={() => setEditingProject(null)}
