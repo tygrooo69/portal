@@ -17,6 +17,15 @@ interface GanttViewProps {
   onEdit: (item: any) => void;
 }
 
+// Helper for ISO Week Number
+const getWeekNumber = (d: Date) => {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
 export const GanttView: React.FC<GanttViewProps> = ({ 
   items, 
   allTasks = [],
@@ -87,6 +96,23 @@ export const GanttView: React.FC<GanttViewProps> = ({
     dates.push(d);
   }
   const timelineStartTs = dates[0].getTime();
+
+  // Calculate Week Chunks for Header
+  const weekChunks: { weekNum: number, count: number, label: string }[] = [];
+  dates.forEach(date => {
+    const weekNum = getWeekNumber(date);
+    const lastChunk = weekChunks[weekChunks.length - 1];
+    
+    if (lastChunk && lastChunk.weekNum === weekNum) {
+      lastChunk.count++;
+    } else {
+      weekChunks.push({ 
+        weekNum, 
+        count: 1, 
+        label: `Semaine ${weekNum}`
+      });
+    }
+  });
 
   // --- TIME BAR DRAG HANDLERS ---
 
@@ -374,27 +400,44 @@ export const GanttView: React.FC<GanttViewProps> = ({
       <div className="flex-1 overflow-x-auto overflow-y-hidden relative print:overflow-visible print:h-auto" ref={timelineRef}>
         <div style={{ width: `${ganttConfig.daysToRender * ganttConfig.colWidth}px` }} className="min-h-full relative print:w-full print:h-auto">
            
-           {/* Header Dates */}
-           <div className="flex h-12 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-20 print:static print:border-b-2 print:border-slate-300">
-             {dates.map((date, i) => {
-               const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-               const isToday = new Date().toDateString() === date.toDateString();
-               const showText = ganttScope === 'day' || (ganttScope === 'week'); 
-               const showDayName = ganttScope === 'day';
-               const isFirstOfMonth = date.getDate() === 1;
+           {/* HEADER GROUP (Sticky) */}
+           <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 print:static border-b border-slate-200 dark:border-slate-800 shadow-sm">
+             
+             {/* Row 1: Weeks */}
+             <div className="flex h-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                {weekChunks.map((chunk, i) => (
+                  <div 
+                    key={`week-${i}`} 
+                    style={{ width: `${chunk.count * ganttConfig.colWidth}px` }}
+                    className="flex items-center justify-center border-r border-slate-200 dark:border-slate-700/50 text-[10px] uppercase tracking-wider font-bold text-slate-500"
+                  >
+                    {chunk.label}
+                  </div>
+                ))}
+             </div>
 
-               return (
-                 <div key={i} className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-slate-100 dark:border-slate-800 text-xs relative ${isWeekend ? 'bg-slate-100/50 dark:bg-slate-800/50' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`} style={{ width: `${ganttConfig.colWidth}px` }}>
-                   {isFirstOfMonth && <div className="absolute top-0 left-0 bg-slate-200 dark:bg-slate-700 text-[10px] px-2 py-0.5 rounded-br z-10 whitespace-nowrap opacity-80 font-bold">{date.toLocaleDateString(undefined, { month: 'short' })}</div>}
-                   {showText && <span className={`font-semibold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>{date.getDate()}</span>}
-                   {showDayName && <span className="text-[10px] text-slate-400 uppercase">{date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3)}</span>}
-                 </div>
-               );
-             })}
+             {/* Row 2: Days */}
+             <div className="flex h-12">
+               {dates.map((date, i) => {
+                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                 const isToday = new Date().toDateString() === date.toDateString();
+                 const showText = ganttScope === 'day' || (ganttScope === 'week'); 
+                 const showDayName = ganttScope === 'day';
+                 const isFirstOfMonth = date.getDate() === 1;
+
+                 return (
+                   <div key={i} className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-slate-100 dark:border-slate-800 text-xs relative ${isWeekend ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`} style={{ width: `${ganttConfig.colWidth}px` }}>
+                     {isFirstOfMonth && <div className="absolute top-0 left-0 bg-slate-200 dark:bg-slate-700 text-[9px] px-1.5 py-0.5 rounded-br z-10 whitespace-nowrap opacity-80 font-bold">{date.toLocaleDateString(undefined, { month: 'short' })}</div>}
+                     {showText && <span className={`font-semibold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>{date.getDate()}</span>}
+                     {showDayName && <span className="text-[10px] text-slate-400 uppercase">{date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3)}</span>}
+                   </div>
+                 );
+               })}
+             </div>
            </div>
 
            {/* Vertical Grid Lines */}
-           <div className="absolute inset-0 top-12 flex pointer-events-none z-0 print:h-full">
+           <div className="absolute inset-0 top-20 flex pointer-events-none z-0 print:h-full">
              {dates.map((date, i) => (
                <div key={i} className={`flex-shrink-0 border-r border-slate-100 dark:border-slate-800/50 h-full ${(date.getDay() === 0 || date.getDay() === 6) ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}`} style={{ width: `${ganttConfig.colWidth}px` }} />
              ))}
