@@ -147,6 +147,7 @@ const SCHEMA = {
   ],
   documents: [
     { name: 'id', def: 'VARCHAR(255) PRIMARY KEY' },
+    { name: 'projectId', def: 'VARCHAR(255)' },
     { name: 'name', def: 'VARCHAR(255)' },
     { name: 'type', def: 'VARCHAR(50)' },
     { name: 'uploadDate', def: 'VARCHAR(50)' },
@@ -341,8 +342,8 @@ app.post('/api/data', async (req, res) => {
       // Documents
       await conn.query('DELETE FROM documents');
       if (documents && documents.length > 0) {
-        const docValues = documents.map(d => [d.id, d.name, d.type, d.uploadDate, d.content]);
-        await conn.query('INSERT INTO documents (id, name, type, uploadDate, content) VALUES ?', [docValues]);
+        const docValues = documents.map(d => [d.id, d.projectId || null, d.name, d.type, d.uploadDate, d.content]);
+        await conn.query('INSERT INTO documents (id, projectId, name, type, uploadDate, content) VALUES ?', [docValues]);
       }
       
       // Users

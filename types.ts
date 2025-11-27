@@ -12,6 +12,7 @@ export interface AppItem {
 
 export interface DocumentItem {
   id: string;
+  projectId?: string; // Linked to a specific project
   name: string;
   content: string;
   type: string;

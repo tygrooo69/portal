@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder, Briefcase, Activity, PieChart } from 'lucide-react';
-import { Project, Task, User, Comment } from '../../types';
+import { LayoutGrid, CheckSquare, BarChart2, List, FileSpreadsheet, Printer, Plus, Users, Filter, ChevronDown, Folder, Briefcase, Activity, PieChart, Sparkles, MessageSquare } from 'lucide-react';
+import { Project, Task, User, Comment, DocumentItem } from '../../types';
 import { Sidebar } from './Sidebar';
 import { GanttView } from './GanttView';
 import { BoardView } from './BoardView';
 import { ListView } from './ListView';
 import { AnalysisView } from './AnalysisView';
+import { ProjectAI } from './ProjectAI';
+import { DiscussionView } from './DiscussionView';
 import { TaskModal, ProjectModal } from './Modals';
 import { ConfirmModal } from '../ConfirmModal'; // Updated import path
 import { downloadCsv, getDaysDiff, addDays } from './utils';
@@ -16,6 +18,7 @@ interface ProjectManagerProps {
   tasks: Task[];
   users: User[];
   comments: Comment[];
+  documents?: DocumentItem[]; // Added documents prop
   currentUser: User | null;
   initialActiveProjectId?: string | null;
   initialEditingTaskId?: string | null;
@@ -30,6 +33,8 @@ interface ProjectManagerProps {
   onReorderTasks?: (tasks: Task[]) => void;
   onDeleteTask: (id: string) => void;
   onAddComment: (comment: Comment) => void;
+  onAddDocuments?: (docs: DocumentItem[]) => void; // Handler for adding docs
+  onDeleteDocument?: (id: string) => void; // Handler for deleting docs
 }
 
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
@@ -37,6 +42,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   tasks,
   users,
   comments,
+  documents = [],
   currentUser,
   initialActiveProjectId = null,
   initialEditingTaskId = null,
@@ -50,10 +56,12 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   onUpdateTasks,
   onReorderTasks,
   onDeleteTask,
-  onAddComment
+  onAddComment,
+  onAddDocuments,
+  onDeleteDocument
 }) => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(initialActiveProjectId);
-  const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list' | 'analysis'>('board');
+  const [viewMode, setViewMode] = useState<'board' | 'gantt' | 'list' | 'analysis' | 'ai' | 'discussion'>('board');
   
   // Filters
   const [filterUserId, setFilterUserId] = useState<string>('all');
@@ -431,6 +439,29 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
   };
 
+  // Controls Content (Shared)
+  const controlsContent = (
+    <div className="flex items-center gap-2 md:gap-3 no-print overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex-shrink-0">
+        <button onClick={() => setViewMode('board')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'board' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><CheckSquare size={16} /><span className="hidden sm:inline">Tableau</span></button>
+        <button onClick={() => setViewMode('gantt')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><BarChart2 size={16} /><span className="hidden sm:inline">Gantt</span></button>
+        <button onClick={() => setViewMode('list')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><List size={16} /><span className="hidden sm:inline">Liste</span></button>
+        <button onClick={() => setViewMode('analysis')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'analysis' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><PieChart size={16} /><span className="hidden sm:inline">Analyse</span></button>
+        {activeProjectId && (
+          <>
+            <button onClick={() => setViewMode('ai')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'ai' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 shadow-sm border border-indigo-200 dark:border-indigo-800' : 'text-slate-500 hover:text-indigo-500'}`}><Sparkles size={16} /><span className="hidden sm:inline">Assistant</span></button>
+            <button onClick={() => setViewMode('discussion')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'discussion' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-slate-500 hover:text-blue-500'}`}><MessageSquare size={16} /><span className="hidden sm:inline">Discussion</span></button>
+          </>
+        )}
+      </div>
+
+      <div className="flex gap-2 border-l border-slate-200 dark:border-slate-700 pl-2 md:pl-3 flex-shrink-0">
+        <button onClick={handleExportExcel} className="p-2 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded-lg"><FileSpreadsheet size={20} /></button>
+        <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg hidden sm:block"><Printer size={20} /></button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col md:flex-row h-full bg-slate-50 dark:bg-slate-950 relative">
       <style>{`
@@ -452,7 +483,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         tasks={tasks}
         activeProjectId={activeProjectId}
         canCreate={!!currentUser}
-        onSelectProject={setActiveProjectId}
+        onSelectProject={(id) => { setActiveProjectId(id); if ((viewMode === 'ai' || viewMode === 'discussion') && !id) setViewMode('board'); }}
         onAddProjectClick={() => setIsAddingProject(true)}
         onAddTaskClick={() => setIsAddingTask(true)}
         onDeleteProject={requestDeleteProject}
@@ -475,7 +506,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                <Folder size={18} className="text-slate-500" />
                <select 
                  value={activeProjectId || ''} 
-                 onChange={(e) => setActiveProjectId(e.target.value || null)}
+                 onChange={(e) => { setActiveProjectId(e.target.value || null); if ((viewMode === 'ai' || viewMode === 'discussion') && !e.target.value) setViewMode('board'); }}
                  className="bg-transparent font-semibold text-slate-800 dark:text-white outline-none w-full truncate pr-8"
                >
                  <option value="">Vue d'ensemble</option>
@@ -492,113 +523,101 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
         </div>
 
         {/* Header (Desktop mainly, adapted for mobile) */}
-        <div className="p-4 md:p-6 md:pr-24 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900">
+        <div className="p-4 md:p-6 md:pr-24 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all">
            {!activeProjectId ? (
-             <div className="hidden md:block">
-               <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                  <LayoutGrid className="text-slate-400" /> Vue d'ensemble
-               </h1>
-               <div className="flex items-center gap-4 mt-2 flex-wrap">
-                 <p className="text-slate-500 text-sm">{filteredProjects.length} projets</p>
-                 
-                 <div className="flex items-center gap-2">
-                    {/* Filter User */}
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                        <Filter size={12} className="text-slate-400" />
-                        <select 
-                          value={filterUserId} 
-                          onChange={(e) => setFilterUserId(e.target.value)}
-                          className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
-                        >
-                          <option value="all" className="bg-white dark:bg-slate-800">Utilisateurs: Tous</option>
-                          {users.map(u => (
-                            <option key={u.id} value={u.id} className="bg-white dark:bg-slate-800">{u.name}</option>
-                          ))}
-                        </select>
-                    </div>
+             /* OVERVIEW LAYOUT - 2 ROWS */
+             <div className="flex flex-col gap-4">
+                {/* Top Row: Title + Controls */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                   <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                      <LayoutGrid className="text-slate-400" /> Vue d'ensemble
+                   </h1>
+                   <div className="flex-shrink-0">{controlsContent}</div>
+                </div>
+                
+                {/* Bottom Row: Filters */}
+                <div className="flex items-center gap-4 flex-wrap">
+                   <p className="text-slate-500 text-sm min-w-fit hidden md:block">{filteredProjects.length} projets</p>
+                   
+                   <div className="flex items-center gap-2 flex-wrap">
+                      {/* Filter User */}
+                      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <Filter size={12} className="text-slate-400" />
+                          <select 
+                            value={filterUserId} 
+                            onChange={(e) => setFilterUserId(e.target.value)}
+                            className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
+                          >
+                            <option value="all" className="bg-white dark:bg-slate-800">Utilisateurs: Tous</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.id} className="bg-white dark:bg-slate-800">{u.name}</option>
+                            ))}
+                          </select>
+                      </div>
 
-                    {/* Filter Service */}
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                        <Briefcase size={12} className="text-slate-400" />
-                        <select 
-                          value={filterService} 
-                          onChange={(e) => setFilterService(e.target.value)}
-                          className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
-                        >
-                          <option value="all" className="bg-white dark:bg-slate-800">Services: Tous</option>
-                          {uniqueServices.map(s => (
-                            <option key={s} value={s} className="bg-white dark:bg-slate-800">{s}</option>
-                          ))}
-                        </select>
-                    </div>
+                      {/* Filter Service */}
+                      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <Briefcase size={12} className="text-slate-400" />
+                          <select 
+                            value={filterService} 
+                            onChange={(e) => setFilterService(e.target.value)}
+                            className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
+                          >
+                            <option value="all" className="bg-white dark:bg-slate-800">Services: Tous</option>
+                            {uniqueServices.map(s => (
+                              <option key={s} value={s} className="bg-white dark:bg-slate-800">{s}</option>
+                            ))}
+                          </select>
+                      </div>
 
-                    {/* Filter Status (New) */}
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                        <Activity size={12} className="text-slate-400" />
-                        <select 
-                          value={filterStatus} 
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                          className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
-                        >
-                          <option value="all" className="bg-white dark:bg-slate-800">Statut: Tous</option>
-                          <option value="active" className="bg-white dark:bg-slate-800">Actifs</option>
-                          <option value="on-hold" className="bg-white dark:bg-slate-800">En pause</option>
-                          <option value="completed" className="bg-white dark:bg-slate-800">Terminés</option>
-                        </select>
-                    </div>
-                 </div>
-               </div>
+                      {/* Filter Status */}
+                      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <Activity size={12} className="text-slate-400" />
+                          <select 
+                            value={filterStatus} 
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="bg-transparent text-xs font-medium text-slate-700 dark:text-white outline-none cursor-pointer border-none focus:ring-0 max-w-[120px]"
+                          >
+                            <option value="all" className="bg-white dark:bg-slate-800">Statut: Tous</option>
+                            <option value="active" className="bg-white dark:bg-slate-800">Actifs</option>
+                            <option value="on-hold" className="bg-white dark:bg-slate-800">En pause</option>
+                            <option value="completed" className="bg-white dark:bg-slate-800">Terminés</option>
+                          </select>
+                      </div>
+                   </div>
+                </div>
              </div>
            ) : (
-             <div onClick={() => activeProject && setEditingProject(activeProject)} className="cursor-pointer group hidden md:block">
-               <div className="flex items-center gap-2">
-                 <h1 className="text-2xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">{activeProject?.name}</h1>
-                 <span className={`px-2 py-0.5 rounded-full text-xs text-white ${activeProject?.color} no-print`}>
-                   {activeProject?.status === 'completed' ? 'Terminé' : activeProject?.status === 'on-hold' ? 'En pause' : 'Actif'}
-                 </span>
+             /* SINGLE PROJECT LAYOUT (1 ROW mostly) */
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+               <div onClick={() => activeProject && setEditingProject(activeProject)} className="cursor-pointer group hidden md:block">
+                 <div className="flex items-center gap-2">
+                   <h1 className="text-2xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">{activeProject?.name}</h1>
+                   <span className={`px-2 py-0.5 rounded-full text-xs text-white ${activeProject?.color} no-print`}>
+                     {activeProject?.status === 'completed' ? 'Terminé' : activeProject?.status === 'on-hold' ? 'En pause' : 'Actif'}
+                   </span>
+                 </div>
+                 <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
+                   {projectTasks.length} tâches
+                   {activeProject?.members && activeProject.members.length > 0 && (
+                     <div className="flex -space-x-2 ml-4">
+                       {activeProject.members.map(mid => {
+                         const user = users.find(u => u.id === mid);
+                         if (!user) return null;
+                         return (
+                           <div key={user.id} className={`w-6 h-6 rounded-full ${user.color} border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
+                             {getInitials(user.name)}
+                           </div>
+                         );
+                       })}
+                     </div>
+                   )}
+                 </p>
                </div>
-               <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
-                 {projectTasks.length} tâches
-                 {activeProject?.members && activeProject.members.length > 0 && (
-                   <div className="flex -space-x-2 ml-4">
-                     {activeProject.members.map(mid => {
-                       const user = users.find(u => u.id === mid);
-                       if (!user) return null;
-                       return (
-                         <div key={user.id} className={`w-6 h-6 rounded-full ${user.color} border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] text-white font-bold`} title={user.name}>
-                           {getInitials(user.name)}
-                         </div>
-                       );
-                     })}
-                   </div>
-                 )}
-               </p>
+               
+               <div className="flex-shrink-0">{controlsContent}</div>
              </div>
            )}
-
-           {/* Controls Bar - Responsive */}
-           <div className="flex items-center gap-2 md:gap-3 no-print overflow-x-auto pb-1 md:pb-0">
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex-shrink-0">
-                <button onClick={() => setViewMode('board')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'board' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><CheckSquare size={16} /><span className="hidden sm:inline">Tableau</span></button>
-                <button onClick={() => setViewMode('gantt')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'gantt' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><BarChart2 size={16} /><span className="hidden sm:inline">Gantt</span></button>
-                <button onClick={() => setViewMode('list')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><List size={16} /><span className="hidden sm:inline">Liste</span></button>
-                <button onClick={() => setViewMode('analysis')} className={`px-2 md:px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'analysis' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}><PieChart size={16} /><span className="hidden sm:inline">Analyse</span></button>
-              </div>
-
-              <div className="flex gap-2 border-l border-slate-200 dark:border-slate-700 pl-2 md:pl-3 flex-shrink-0">
-                <button onClick={handleExportExcel} className="p-2 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded-lg"><FileSpreadsheet size={20} /></button>
-                <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg hidden sm:block"><Printer size={20} /></button>
-              </div>
-
-              {activeProjectId && currentUser && (
-                <button 
-                  onClick={() => setIsAddingTask(true)}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-2 ml-auto md:ml-4 flex-shrink-0 shadow-md transition-all hover:scale-105"
-                >
-                  <Plus size={20} /> <span className="hidden sm:inline">Nouvelle Tâche</span>
-                </button>
-              )}
-           </div>
         </div>
 
         {/* Views Container */}
@@ -649,6 +668,25 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                projects={filteredProjects}
                users={users}
                isOverview={!activeProjectId}
+            />
+          )}
+
+          {viewMode === 'ai' && activeProject && onAddDocuments && onDeleteDocument && (
+            <ProjectAI 
+              project={activeProject}
+              documents={documents}
+              onAddDocuments={onAddDocuments}
+              onDeleteDocument={onDeleteDocument}
+            />
+          )}
+
+          {viewMode === 'discussion' && activeProject && (
+            <DiscussionView 
+              project={activeProject}
+              comments={comments}
+              users={users}
+              currentUser={currentUser}
+              onAddComment={onAddComment}
             />
           )}
         </div>
@@ -705,8 +743,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           project={editingProject}
           users={users}
           allProjects={projects}
-          comments={comments}
-          onAddComment={onAddComment}
+          // comments={comments} -> Removed as discussions are now in a separate view
+          // onAddComment={onAddComment} -> Removed as discussions are now in a separate view
           onSave={(updated) => handleProjectUpdateWithDependencies(updated as Project)}
           onDelete={(id) => requestDeleteProject(id)}
           onClose={() => setEditingProject(null)}

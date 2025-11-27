@@ -395,19 +395,14 @@ interface ProjectModalProps {
   project: Project | Partial<Project> | null;
   users: User[];
   allProjects?: Project[]; // For dependencies
-  comments?: Comment[];
   onSave: (project: Partial<Project>) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
-  onAddComment?: (comment: Comment) => void;
   isNew?: boolean;
   currentUser?: User | null;
 }
 
-type ProjectTab = 'details' | 'comments';
-
-export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], comments = [], onSave, onDelete, onClose, onAddComment, isNew, currentUser }) => {
-  const [activeTab, setActiveTab] = useState<ProjectTab>('details');
+export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allProjects = [], onSave, onDelete, onClose, isNew, currentUser }) => {
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     description: '',
@@ -421,10 +416,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
   });
 
   const [searchMemberQuery, setSearchMemberQuery] = useState('');
-  
-  // Comments State
-  const [newComment, setNewComment] = useState('');
-  const commentsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (project) {
@@ -443,13 +434,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     }
   }, [project, currentUser]);
 
-  // Scroll to bottom of comments when tab changes or new comment added
-  useEffect(() => {
-    if (activeTab === 'comments' && commentsEndRef.current) {
-      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [activeTab, comments]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
@@ -459,7 +443,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
   const handleManualSave = () => {
     if (!formData.name) {
       alert("Le nom du projet est obligatoire.");
-      setActiveTab('details');
       return;
     }
     onSave(formData);
@@ -487,25 +470,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     }
   };
 
-  // --- Comment Logic ---
-  const handlePostComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim() || !currentUser || !project?.id || !onAddComment) return;
-
-    const comment: Comment = {
-      id: Date.now().toString(),
-      projectId: project.id, // Use projectId instead of taskId
-      userId: currentUser.id,
-      text: newComment,
-      createdAt: new Date().toISOString()
-    };
-
-    onAddComment(comment);
-    setNewComment('');
-  };
-
-  const projectComments = comments.filter(c => c.projectId === project?.id).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
   const getInitials = (name: string) => {
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
   };
@@ -527,7 +491,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
     <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 p-0 scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-start p-6 pb-2">
+        <div className="flex justify-between items-start p-6 pb-2 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h2 className="text-xl font-bold text-slate-800 dark:text-white">{isNew ? 'Nouveau projet' : 'Modifier le projet'}</h2>
             {!isNew && <p className="text-xs text-slate-500 mt-1">{formData.name}</p>}
@@ -535,26 +499,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
           <button type="button" onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
         </div>
         
-        {/* Tabs */}
-        {!isNew && (
-          <div className="flex items-center gap-1 px-6 border-b border-slate-200 dark:border-slate-800">
-            <button 
-              onClick={() => setActiveTab('details')}
-              className={`pb-2 px-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'details' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-            >
-               Détails
-            </button>
-            <button 
-              onClick={() => setActiveTab('comments')}
-              className={`pb-2 px-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'comments' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-            >
-               Discussion ({projectComments.length})
-            </button>
-          </div>
-        )}
-        
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'details' && (
             <form id="project-form" onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Nom du projet</label>
@@ -715,71 +660,24 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, users, allP
                 )}
               </div>
             </form>
-          )}
-
-          {activeTab === 'comments' && (
-            <div className="flex flex-col h-[450px]">
-               <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-                 {projectComments.map(comment => {
-                   const user = users.find(u => u.id === comment.userId);
-                   const isMe = currentUser?.id === comment.userId;
-                   return (
-                     <div key={comment.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
-                        <div className={`w-8 h-8 rounded-full ${user?.color || 'bg-slate-400'} flex-shrink-0 flex items-center justify-center text-xs text-white font-bold`}>
-                           {user ? getInitials(user.name) : '?'}
-                        </div>
-                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
-                           <div className={`px-3 py-2 rounded-xl text-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none'}`}>
-                             {comment.text}
-                           </div>
-                           <span className="text-[10px] text-slate-400 mt-1">
-                             {user?.name} • {new Date(comment.createdAt).toLocaleString()}
-                           </span>
-                        </div>
-                     </div>
-                   );
-                 })}
-                 {projectComments.length === 0 && (
-                   <div className="text-center text-slate-400 text-sm py-10">Aucun commentaire sur ce projet.</div>
-                 )}
-                 <div ref={commentsEndRef} />
-               </div>
-
-               <form onSubmit={handlePostComment} className="flex gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
-                  <input 
-                    type="text" 
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    placeholder="Discussion sur le projet..."
-                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm"
-                  />
-                  <button type="submit" disabled={!newComment.trim()} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                    <Send size={18} />
-                  </button>
-               </form>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
-        {activeTab !== 'comments' && (
-          <div className="pt-4 p-6 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10">
+        <div className="pt-4 p-6 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10">
             {!isNew && onDelete && formData.id && (
               <button type="button" onClick={() => onDelete(formData.id!)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Trash2 size={16} /> Supprimer</button>
             )}
             <div className={`flex gap-2 ${isNew ? 'w-full justify-end' : ''}`}>
               <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-lg text-sm font-medium">Annuler</button>
               <button 
-                type={activeTab === 'details' ? 'submit' : 'button'}
-                form={activeTab === 'details' ? 'project-form' : undefined}
-                onClick={activeTab === 'details' ? undefined : handleManualSave}
+                type="submit"
+                form="project-form"
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
               >
                 <Save size={16} /> Enregistrer
               </button>
             </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
